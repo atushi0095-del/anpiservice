@@ -245,17 +245,16 @@ button {
 .checkin-button.is-saving,
 .checkin-button:disabled {
   cursor: wait;
-  background: var(--gold);
-  color: #3d2f00;
+  background: #d8ecff;
+  color: #0d4f8f;
 }
 
 .checkin-complete {
-  animation: checkinPulse 900ms ease;
+  animation: checkinPanelPulse 1100ms ease;
 }
 
 .checkin-complete .checkin-button {
-  background: #e9f8ef;
-  color: var(--green);
+  animation: checkinButtonFlash 1100ms ease forwards;
 }
 
 .checkin-feedback {
@@ -267,17 +266,37 @@ button {
   font-weight: 700;
 }
 
-@keyframes checkinPulse {
+@keyframes checkinPanelPulse {
   0% {
     box-shadow: 0 14px 36px rgba(23, 33, 31, 0.12);
   }
 
   45% {
-    box-shadow: 0 0 0 5px rgba(255, 255, 255, 0.24), 0 18px 42px rgba(23, 33, 31, 0.18);
+    box-shadow: 0 0 0 5px rgba(97, 171, 255, 0.32), 0 18px 42px rgba(23, 33, 31, 0.18);
   }
 
   100% {
     box-shadow: 0 14px 36px rgba(23, 33, 31, 0.12);
+  }
+}
+
+@keyframes checkinButtonFlash {
+  0% {
+    background: #1f8cff;
+    color: white;
+    box-shadow: 0 0 0 0 rgba(97, 171, 255, 0.55), 0 10px 22px rgba(23, 33, 31, 0.18);
+  }
+
+  45% {
+    background: #1f8cff;
+    color: white;
+    box-shadow: 0 0 0 7px rgba(97, 171, 255, 0.24), 0 12px 26px rgba(23, 33, 31, 0.2);
+  }
+
+  100% {
+    background: white;
+    color: var(--teal);
+    box-shadow: 0 10px 22px rgba(23, 33, 31, 0.18);
   }
 }
 
