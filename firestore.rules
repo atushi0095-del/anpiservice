@@ -1,0 +1,49 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isSelf(userId) {
+      return signedIn() && request.auth.uid == userId;
+    }
+
+    function isActiveFamilyFor(memberId) {
+      return signedIn() && exists(/databases/$(database)/documents/watchLinks/$(memberId + "_" + request.auth.uid)) &&
+        get(/databases/$(database)/documents/watchLinks/$(memberId + "_" + request.auth.uid)).data.active == true;
+    }
+
+    match /users/{userId} {
+      allow read: if isSelf(userId) || isActiveFamilyFor(userId);
+      allow create: if isSelf(userId);
+      allow update, delete: if isSelf(userId);
+    }
+
+    match /notificationSettings/{userId} {
+      allow read: if isSelf(userId) || isActiveFamilyFor(userId);
+      allow write: if isSelf(userId);
+    }
+
+    match /watchLinks/{linkId} {
+      allow read: if signedIn() &&
+        (resource.data.memberId == request.auth.uid || resource.data.familyId == request.auth.uid);
+      allow create: if signedIn() && request.resource.data.memberId == request.auth.uid;
+      allow update: if signedIn() &&
+        (resource.data.memberId == request.auth.uid || resource.data.familyId == request.auth.uid);
+      allow delete: if signedIn() && resource.data.memberId == request.auth.uid;
+    }
+
+    match /checkIns/{checkInId} {
+      allow read: if isSelf(resource.data.memberId) || isActiveFamilyFor(resource.data.memberId);
+      allow create: if signedIn() && request.resource.data.memberId == request.auth.uid;
+      allow update, delete: if false;
+    }
+
+    match /notificationLogs/{logId} {
+      allow read: if isSelf(resource.data.memberId) || isActiveFamilyFor(resource.data.memberId);
+      allow write: if false;
+    }
+  }
+}
