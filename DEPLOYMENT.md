@@ -100,6 +100,21 @@ Vercel Cronが30分ごとに以下を実行する。
 /api/jobs/evaluate-safety
 ```
 
+Androidアプリ通知を使う場合、アプリ側でFCM tokenを取得し、次へ登録する。
+
+```text
+POST /api/push/register
+```
+
+Body:
+
+```json
+{
+  "lineLinkCode": "ANPI-123456",
+  "pushToken": "FCM_REGISTRATION_TOKEN"
+}
+```
+
 手動で試す場合:
 
 ```powershell

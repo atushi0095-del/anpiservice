@@ -50,6 +50,18 @@ function inviteMailHref(link: WatchLink) {
   return `mailto:${link.familyEmail}?subject=${subject}&body=${body}`;
 }
 
+function channelLabel(link: WatchLink) {
+  if (link.pushEnabled && link.pushToken) {
+    return "アプリ通知";
+  }
+
+  if (link.lineLinked) {
+    return "LINE通知";
+  }
+
+  return "メール代替";
+}
+
 export function SafetyApp() {
   const firebaseEnabled = hasFirebaseConfig();
   const lineOfficialAccountUrl = process.env.NEXT_PUBLIC_LINE_OFFICIAL_ACCOUNT_URL || "";
@@ -242,7 +254,7 @@ export function SafetyApp() {
       return;
     }
 
-    const next =
+    const next: WatchLink =
       firebaseEnabled && authUser
         ? await addFamilyContact(authUser.uid, familyName.trim(), familyEmail.trim())
         : {
@@ -253,6 +265,8 @@ export function SafetyApp() {
             familyEmail: familyEmail.trim(),
             lineLinkCode: createLineLinkCode(),
             lineLinked: false,
+            pushEnabled: false,
+            preferredChannel: "push",
             active: true,
             createdAt: new Date().toISOString()
           };
@@ -427,6 +441,7 @@ export function SafetyApp() {
                   <span className={link.lineLinked ? "pill success" : "pill warning"}>
                     {link.lineLinked ? "LINE連携済み" : "メール通知へ代替"}
                   </span>
+                  <span className={link.pushEnabled ? "pill success" : "pill"}>通知優先: {channelLabel(link)}</span>
                   <p className="line-code">LINE連携コード: {link.lineLinkCode}</p>
                 </div>
                 <div className="family-actions">

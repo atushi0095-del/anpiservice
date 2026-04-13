@@ -15,7 +15,7 @@ export type NotificationSettings = {
   frequencyDays: CheckInFrequencyDays;
   graceHours: number;
   reminderChannel: "app" | "email";
-  familyChannel: "line" | "email";
+  familyChannel: "push" | "line" | "email";
 };
 
 export type WatchLink = {
@@ -28,6 +28,10 @@ export type WatchLink = {
   lineUserId?: string;
   lineLinked: boolean;
   lineLinkedAt?: string;
+  pushToken?: string;
+  pushEnabled?: boolean;
+  pushLinkedAt?: string;
+  preferredChannel?: "push" | "line" | "email";
   active: boolean;
   createdAt: string;
 };
@@ -45,7 +49,7 @@ export type NotificationLog = {
   memberId: string;
   watchLinkId?: string;
   recipientName: string;
-  channel: "app" | "email" | "line";
+  channel: "app" | "email" | "line" | "push";
   kind: "self_reminder" | "family_alert";
   status: "queued" | "sent" | "failed" | "fallback";
   message: string;

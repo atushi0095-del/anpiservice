@@ -1,6 +1,6 @@
 import { FieldValue, Timestamp } from "firebase-admin/firestore";
 import { NextRequest, NextResponse } from "next/server";
-import { getAdminDb } from "@/lib/firebase-admin";
+import { getAdminDb, getAdminMessaging } from "@/lib/firebase-admin";
 import { pushLineMessage } from "@/lib/line-server";
 
 export const runtime = "nodejs";
@@ -9,7 +9,7 @@ type NotificationSettings = {
   userId: string;
   graceHours: number;
   reminderChannel: "app" | "email";
-  familyChannel: "line" | "email";
+  familyChannel: "push" | "line" | "email";
 };
 
 type CheckIn = {
@@ -23,11 +23,21 @@ type WatchLink = {
   familyName: string;
   familyEmail: string;
   lineUserId?: string;
-  lineLinked: boolean;
+  lineLinked?: boolean;
+  pushToken?: string;
+  pushEnabled?: boolean;
+  preferredChannel?: "push" | "line" | "email";
   active: boolean;
 };
 
+type SendResult = {
+  channel: "push" | "line" | "email";
+  status: "sent" | "failed" | "fallback";
+  message: string;
+};
+
 const HOUR_MS = 60 * 60 * 1000;
+const FAMILY_ALERT_TEXT = "見守り中の方の安否確認がまだ完了していません。必要に応じて直接ご確認ください。";
 
 export async function GET(request: NextRequest) {
   const secret = process.env.CRON_SECRET;
@@ -117,30 +127,77 @@ async function sendFamilyAlert(memberId: string, watchLinkId: string, link: Watc
     return false;
   }
 
-  if (link.lineLinked && link.lineUserId) {
-    const result = await pushLineMessage(link.lineUserId, "見守り中の方の安否確認がまだ完了していません。必要に応じて直接ご確認ください。");
-    await logRef.set({
-      memberId,
-      watchLinkId,
-      recipientName: link.familyName,
-      channel: "line",
-      kind: "family_alert",
-      status: result.ok ? "sent" : "failed",
-      message: result.ok ? "LINE通知を送信しました。" : result.error,
-      createdAt: FieldValue.serverTimestamp()
-    });
-    return true;
-  }
-
+  const result = await sendBestAvailableChannel(link);
   await logRef.set({
     memberId,
     watchLinkId,
     recipientName: link.familyName,
-    channel: "email",
+    channel: result.channel,
     kind: "family_alert",
-    status: "fallback",
-    message: `${link.familyEmail} へのメール代替通知をキューに登録しました。`,
+    status: result.status,
+    message: result.message,
     createdAt: FieldValue.serverTimestamp()
   });
   return true;
+}
+
+async function sendBestAvailableChannel(link: WatchLink): Promise<SendResult> {
+  const pushResult = await tryPushNotification(link);
+  if (pushResult.status === "sent") {
+    return pushResult;
+  }
+
+  if (link.lineLinked && link.lineUserId) {
+    const result = await pushLineMessage(link.lineUserId, FAMILY_ALERT_TEXT);
+    return {
+      channel: "line",
+      status: result.ok ? "sent" : "failed",
+      message: result.ok ? "LINE通知を送信しました。" : result.error
+    };
+  }
+
+  return {
+    channel: "email",
+    status: "fallback",
+    message: `${link.familyEmail} へのメール代替通知をキューに登録しました。`
+  };
+}
+
+async function tryPushNotification(link: WatchLink): Promise<SendResult> {
+  if (!link.pushEnabled || !link.pushToken) {
+    return {
+      channel: "push",
+      status: "fallback",
+      message: "アプリ通知が未登録のため、次の通知手段へ切り替えました。"
+    };
+  }
+
+  try {
+    await getAdminMessaging().send({
+      token: link.pushToken,
+      notification: {
+        title: "あんぴノート",
+        body: FAMILY_ALERT_TEXT
+      },
+      data: {
+        type: "family_alert",
+        memberId: link.memberId
+      },
+      android: {
+        priority: "high"
+      }
+    });
+
+    return {
+      channel: "push",
+      status: "sent",
+      message: "アプリ通知を送信しました。"
+    };
+  } catch (error) {
+    return {
+      channel: "push",
+      status: "failed",
+      message: error instanceof Error ? error.message : "アプリ通知の送信に失敗しました。"
+    };
+  }
 }

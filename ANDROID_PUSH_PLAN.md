@@ -49,6 +49,29 @@ LINEは削除しない。家族がLINEを希望する場合、またはアプリ
 
 通知判定では `preferredChannel` を見て送信する。
 
+現在のWeb APIでは、次の順番で通知する。
+
+1. `pushEnabled` と `pushToken` がある場合はFirebase Cloud Messaging
+2. LINE連携済みならLINE Messaging API
+3. どちらも未設定ならメール代替ログ
+
+Androidアプリ側は、FCM tokenを取得後に次のAPIへ登録する。
+
+```text
+POST /api/push/register
+```
+
+Body:
+
+```json
+{
+  "lineLinkCode": "ANPI-123456",
+  "pushToken": "FCM_REGISTRATION_TOKEN"
+}
+```
+
+このAPIは該当する `watchLinks` に `pushToken`、`pushEnabled`、`pushLinkedAt`、`preferredChannel: "push"` を保存する。
+
 ## Android実装候補
 
 ### 推奨: Capacitor
@@ -121,10 +144,11 @@ PWAをほぼそのままAndroidアプリとして包む。
 4. `watchLinks` にpush通知用フィールド追加
 5. Capacitor導入
 6. Android端末でFCM token取得
-7. Vercel通知判定APIでFCM送信
-8. Google Play内部テスト
-9. クローズドテスト
-10. 公開
+7. Androidアプリから `/api/push/register` へFCM tokenを登録
+8. Vercel通知判定APIでFCM送信
+9. Google Play内部テスト
+10. クローズドテスト
+11. 公開
 
 ## 注意
 

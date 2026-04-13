@@ -28,7 +28,7 @@ const defaultSettings = (userId: string): NotificationSettings => ({
   frequencyDays: 1,
   graceHours: 6,
   reminderChannel: "email",
-  familyChannel: "line"
+  familyChannel: "push"
 });
 
 export function createLineLinkCode(): string {
@@ -117,6 +117,8 @@ export async function addFamilyContact(memberId: string, familyName: string, fam
     familyEmail,
     lineLinkCode: createLineLinkCode(),
     lineLinked: false,
+    pushEnabled: false,
+    preferredChannel: "push",
     active: true,
     createdAt
   };
