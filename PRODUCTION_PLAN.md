@@ -70,8 +70,10 @@ AndroidはGoogle Play Console登録が一回払いのため、iOSより先に出
 
 方法:
 
-- PWAをTrusted Web ActivityでAndroidアプリ化
+- PWAをCapacitorまたはTrusted Web ActivityでAndroidアプリ化
 - 既存Next.js/PWAを大きく作り直さない
+- Firebase Cloud Messagingでアプリ通知を主通知にする
+- LINE通知は補助通知として残す
 - Google Playで「見守り」「安否確認」検索流入を確認
 
 ### Step 3: iOSアプリ化
@@ -149,7 +151,7 @@ iOSはApple Developer Programの年会費があるため、課金見込みが見
 - PWAで30組以上が利用
 - 2週間継続率が40%以上
 - 月額300円以上の支払意思が10件以上
-- LINE通知が月無料枠を超えそう
+- LINE通知が月無料枠を超えそう、またはアプリ通知へ切り替えたい
 - 「ホーム画面追加が難しい」という声が複数ある
 
 この条件を満たす前にネイティブアプリ化すると、開発・審査・保守コストが先に増える。
