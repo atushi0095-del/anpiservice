@@ -65,6 +65,8 @@ export function SafetyApp() {
   const [familyName, setFamilyName] = useState("");
   const [familyEmail, setFamilyEmail] = useState("");
   const [demoStorageReady, setDemoStorageReady] = useState(false);
+  const [checkInSaving, setCheckInSaving] = useState(false);
+  const [checkInFeedback, setCheckInFeedback] = useState(false);
   const [message, setMessage] = useState(
     firebaseEnabled ? "メールでログインするとデータをFirebaseへ保存します。" : "Firebase未設定のためデモモードで動作しています。"
   );
@@ -187,22 +189,37 @@ export function SafetyApp() {
   }
 
   async function handleCheckIn() {
-    const next = firebaseEnabled && authUser ? await saveCheckIn(authUser.uid, settings) : createCheckIn(profile.id, settings);
-    setLatestCheckIn(next);
-    setLogs((current) => [
-      {
-        id: `log-${Date.now()}`,
-        memberId: profile.id,
-        recipientName: profile.displayName,
-        channel: "app",
-        kind: "self_reminder",
-        status: "sent",
-        message: "本人が「無事です」を記録しました。",
-        createdAt: next.checkedAt
-      },
-      ...current
-    ]);
-    setMessage("チェックインを記録しました。");
+    if (checkInSaving) {
+      return;
+    }
+
+    setCheckInSaving(true);
+    setCheckInFeedback(false);
+
+    try {
+      const next = firebaseEnabled && authUser ? await saveCheckIn(authUser.uid, settings) : createCheckIn(profile.id, settings);
+      setLatestCheckIn(next);
+      setLogs((current) => [
+        {
+          id: `log-${Date.now()}`,
+          memberId: profile.id,
+          recipientName: profile.displayName,
+          channel: "app",
+          kind: "self_reminder",
+          status: "sent",
+          message: "本人が「無事です」を記録しました。",
+          createdAt: next.checkedAt
+        },
+        ...current
+      ]);
+      setMessage(`チェックインを記録しました。最終確認: ${formatJapaneseDateTime(next.checkedAt)}`);
+      setCheckInFeedback(true);
+      window.setTimeout(() => setCheckInFeedback(false), 2600);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "チェックインの記録に失敗しました。");
+    } finally {
+      window.setTimeout(() => setCheckInSaving(false), 450);
+    }
   }
 
   async function handleFrequencyChange(value: CheckInFrequencyDays) {
@@ -343,7 +360,7 @@ export function SafetyApp() {
           )}
         </section>
 
-        <div id="checkin" className={`status-panel status-${status}`}>
+        <div id="checkin" className={`status-panel status-${status} ${checkInFeedback ? "checkin-complete" : ""}`}>
           <p className="panel-label">本人用</p>
           <h2>{statusLabel(status)}</h2>
           <p className="status-copy">
@@ -351,9 +368,16 @@ export function SafetyApp() {
             <br />
             次回期限: {formatJapaneseDateTime(latestCheckIn.nextDueAt)}
           </p>
-          <button type="button" className="checkin-button" onClick={handleCheckIn}>
-            無事です
+          <button
+            type="button"
+            className={`checkin-button ${checkInSaving ? "is-saving" : ""}`}
+            onClick={handleCheckIn}
+            disabled={checkInSaving}
+            aria-live="polite"
+          >
+            {checkInSaving ? "記録中..." : checkInFeedback ? "記録しました" : "無事です"}
           </button>
+          {checkInFeedback ? <p className="checkin-feedback">今日の安否確認を記録しました。</p> : null}
           <p className="small-copy">押すと次回期限が設定頻度に合わせて更新されます。</p>
         </div>
 

@@ -229,6 +229,56 @@ button {
   background: white;
   color: var(--teal);
   font-size: 1.35rem;
+  box-shadow: 0 10px 22px rgba(23, 33, 31, 0.18);
+  transition:
+    background 160ms ease,
+    color 160ms ease,
+    box-shadow 160ms ease,
+    transform 120ms ease;
+}
+
+.checkin-button:active {
+  transform: scale(0.98);
+  box-shadow: 0 5px 12px rgba(23, 33, 31, 0.18);
+}
+
+.checkin-button.is-saving,
+.checkin-button:disabled {
+  cursor: wait;
+  background: var(--gold);
+  color: #3d2f00;
+}
+
+.checkin-complete {
+  animation: checkinPulse 900ms ease;
+}
+
+.checkin-complete .checkin-button {
+  background: #e9f8ef;
+  color: var(--green);
+}
+
+.checkin-feedback {
+  margin: 12px 0 0;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.18);
+  color: white;
+  padding: 10px 12px;
+  font-weight: 700;
+}
+
+@keyframes checkinPulse {
+  0% {
+    box-shadow: 0 14px 36px rgba(23, 33, 31, 0.12);
+  }
+
+  45% {
+    box-shadow: 0 0 0 5px rgba(255, 255, 255, 0.24), 0 18px 42px rgba(23, 33, 31, 0.18);
+  }
+
+  100% {
+    box-shadow: 0 14px 36px rgba(23, 33, 31, 0.12);
+  }
 }
 
 .small-copy {
