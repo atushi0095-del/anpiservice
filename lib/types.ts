@@ -7,6 +7,9 @@ export type UserProfile = {
   displayName: string;
   email: string;
   role: UserRole;
+  pushToken?: string;
+  pushEnabled?: boolean;
+  pushLinkedAt?: string;
   createdAt: string;
 };
 

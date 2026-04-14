@@ -8,6 +8,7 @@ import {
   type User
 } from "firebase/auth";
 import { PushRegistration } from "@/components/push-registration";
+import { isStrongEnoughPassword, toAuthMessage } from "@/lib/auth-errors";
 import { getFirebaseClients, hasFirebaseConfig } from "@/lib/firebase";
 
 type InviteAcceptanceProps = {
@@ -36,6 +37,7 @@ export function InviteAcceptance({ code }: InviteAcceptanceProps) {
   const [message, setMessage] = useState("招待を確認しています。");
   const [loading, setLoading] = useState(true);
   const [acceptedCode, setAcceptedCode] = useState<string | null>(null);
+  const [mutualWatch, setMutualWatch] = useState(true);
 
   useEffect(() => {
     fetch(`/api/invites/${encodeURIComponent(normalizedCode)}`)
@@ -78,12 +80,16 @@ export function InviteAcceptance({ code }: InviteAcceptanceProps) {
       if (mode === "signin") {
         await signInWithEmailAndPassword(auth, email, password);
       } else {
+        if (!isStrongEnoughPassword(password)) {
+          setMessage("パスワードは8文字以上で、英字と数字を含めてください。");
+          return;
+        }
         await createUserWithEmailAndPassword(auth, email, password);
       }
       setPassword("");
       setMessage("ログインしました。承認ボタンを押してください。");
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "ログインに失敗しました。");
+      setMessage(toAuthMessage(error));
     } finally {
       setLoading(false);
     }
@@ -101,8 +107,10 @@ export function InviteAcceptance({ code }: InviteAcceptanceProps) {
       const response = await fetch(`/api/invites/${encodeURIComponent(normalizedCode)}`, {
         method: "POST",
         headers: {
+          "Content-Type": "application/json",
           Authorization: `Bearer ${token}`
-        }
+        },
+        body: JSON.stringify({ mutualWatch })
       });
       const data = await response.json();
       if (!response.ok) {
@@ -152,7 +160,7 @@ export function InviteAcceptance({ code }: InviteAcceptanceProps) {
           <h2>ログインまたは登録</h2>
           <div className="auth-form invite-auth">
             <input value={email} onChange={(event) => setEmail(event.target.value)} placeholder="メールアドレス" type="email" />
-            <input value={password} onChange={(event) => setPassword(event.target.value)} placeholder="パスワード" type="password" />
+            <input value={password} onChange={(event) => setPassword(event.target.value)} placeholder="パスワード 8文字以上" type="password" />
             <button type="button" onClick={() => handleAuth("signin")} disabled={loading}>
               ログイン
             </button>
@@ -160,11 +168,16 @@ export function InviteAcceptance({ code }: InviteAcceptanceProps) {
               新規登録
             </button>
           </div>
+          <p className="small-copy">パスワードは8文字以上で、英字と数字を含めてください。一度ログインすると次回から自動ログインされます。</p>
         </section>
       ) : (
         <section className="panel">
           <p className="panel-label">承認</p>
           <h2>{authUser.email} で承認します</h2>
+          <label className="check-row">
+            <input type="checkbox" checked={mutualWatch} onChange={(event) => setMutualWatch(event.target.checked)} />
+            <span>自分も相手に見守ってもらう</span>
+          </label>
           <button type="button" className="wide-action" onClick={handleAccept} disabled={loading || Boolean(acceptedCode)}>
             {acceptedCode ? "承認済み" : "見守りを承認"}
           </button>

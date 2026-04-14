@@ -9,6 +9,7 @@ import {
   type User
 } from "firebase/auth";
 import { PushRegistration } from "@/components/push-registration";
+import { isStrongEnoughPassword, toAuthMessage } from "@/lib/auth-errors";
 import { demoCheckIn, demoFamily, demoMember, demoNotificationLogs, demoSettings, demoWatchLinks } from "@/lib/demo-data";
 import { getFirebaseClients, hasFirebaseConfig } from "@/lib/firebase";
 import {
@@ -191,15 +192,13 @@ export function SafetyApp() {
         setLatestCheckIn(data.latestCheckIn);
         setWatchLinks(data.watchLinks);
         setLogs(data.logs);
-        if (data.profile.role === "family") {
-          const targets = await loadFamilyDashboard(user.uid);
-          setFamilyTargets(targets);
-          setActiveScreen("family");
-          setMessage("家族アカウントで接続しました。承認済みの見守り対象を表示します。");
-        } else {
-          setFamilyTargets([]);
-          setMessage("Firebaseに接続しました。チェックインと設定を保存します。");
-        }
+        const targets = await loadFamilyDashboard(user.uid);
+        setFamilyTargets(targets);
+        setMessage(
+          targets.length
+            ? "Firebaseに接続しました。自分の確認と家族の見守りを利用できます。"
+            : "Firebaseに接続しました。チェックインと設定を保存します。"
+        );
       } catch (error) {
         setMessage(error instanceof Error ? error.message : "Firebaseデータの読み込みに失敗しました。");
       } finally {
@@ -220,11 +219,15 @@ export function SafetyApp() {
       if (mode === "signin") {
         await signInWithEmailAndPassword(auth, email, password);
       } else {
+        if (!isStrongEnoughPassword(password)) {
+          setMessage("パスワードは8文字以上で、英字と数字を含めてください。");
+          return;
+        }
         await createUserWithEmailAndPassword(auth, email, password);
       }
       setPassword("");
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "認証に失敗しました。");
+      setMessage(toAuthMessage(error));
     } finally {
       setLoading(false);
     }
@@ -236,11 +239,12 @@ export function SafetyApp() {
     }
 
     const { auth } = getFirebaseClients();
-    await signOut(auth);
+      await signOut(auth);
     setProfile(demoMember);
     setSettings(demoSettings);
     setLatestCheckIn(demoCheckIn);
     setWatchLinks(demoWatchLinks);
+    setFamilyTargets([]);
     setLogs(demoNotificationLogs);
   }
 
@@ -367,73 +371,6 @@ export function SafetyApp() {
     setMessage(choice.outcome === "accepted" ? "ホーム画面に追加しました。" : "ホーム画面追加をキャンセルしました。");
   }
 
-  if (authUser && profile.role === "family") {
-    return (
-      <main className="phone-app">
-        <header className="app-header">
-          <div className="brand-row">
-            <img src="/icon.svg" alt="あんぴノート" className="app-icon" />
-            <div>
-              <p className="eyebrow">家族の見守り</p>
-              <h1>あんぴノート</h1>
-            </div>
-          </div>
-          <button type="button" className="install-button" onClick={handleInstallApp} disabled={isStandalone}>
-            {isStandalone ? "追加済み" : "アプリを追加"}
-          </button>
-        </header>
-
-        <p className="app-message">{loading ? "処理中です。" : message}</p>
-
-        <section className="screen-page">
-          <section className="panel">
-            <p className="panel-label">見守り対象</p>
-            <h2>見守り中の方</h2>
-            <div className="family-list">
-              {familyTargets.length ? (
-                familyTargets.map((target) => {
-                  const targetStatus = target.latestCheckIn
-                    ? getSafetyStatus(target.latestCheckIn.nextDueAt, target.settings?.graceHours || 6)
-                    : "overdue";
-                  return (
-                    <article className="family-item" key={target.link.id}>
-                      <div>
-                        <h3>{target.member.displayName}</h3>
-                        <p>{target.member.email}</p>
-                        <span className={`pill ${targetStatus === "ok" ? "success" : "warning"}`}>{statusLabel(targetStatus)}</span>
-                        <p className="small-copy">
-                          最終確認:{" "}
-                          {target.latestCheckIn ? formatJapaneseDateTime(target.latestCheckIn.checkedAt) : "まだ記録がありません"}
-                        </p>
-                      </div>
-                      <PushRegistration lineLinkCode={target.link.lineLinkCode} enabled={Boolean(target.link.pushEnabled)} />
-                    </article>
-                  );
-                })
-              ) : (
-                <p>まだ承認済みの見守り対象がありません。招待リンクから承認してください。</p>
-              )}
-            </div>
-          </section>
-
-          <section className="panel">
-            <p className="panel-label">アカウント</p>
-            <h2>{profile.displayName} さん</h2>
-            <p className="small-copy">家族アカウントとしてログイン中です。</p>
-            <button type="button" className="wide-action" onClick={handleSignOut}>
-              ログアウト
-            </button>
-          </section>
-        </section>
-
-        <footer>
-          <a href="/terms">利用規約</a>
-          <a href="/privacy">プライバシーポリシー</a>
-        </footer>
-      </main>
-    );
-  }
-
   return (
     <main className="phone-app">
       <header className="app-header">
@@ -484,6 +421,38 @@ export function SafetyApp() {
         </div>
 
         <div className={activeScreen === "family" ? "screen-page is-active" : "screen-page"} hidden={activeScreen !== "family"}>
+          {authUser ? (
+            <section className="panel">
+              <p className="panel-label">見守り対象</p>
+              <h2>見守り中の方</h2>
+              <div className="family-list">
+                {familyTargets.length ? (
+                  familyTargets.map((target) => {
+                    const targetStatus = target.latestCheckIn
+                      ? getSafetyStatus(target.latestCheckIn.nextDueAt, target.settings?.graceHours || 6)
+                      : "overdue";
+                    return (
+                      <article className="family-item" key={target.link.id}>
+                        <div>
+                          <h3>{target.member.displayName}</h3>
+                          <p>{target.member.email}</p>
+                          <span className={`pill ${targetStatus === "ok" ? "success" : "warning"}`}>{statusLabel(targetStatus)}</span>
+                          <p className="small-copy">
+                            最終確認:{" "}
+                            {target.latestCheckIn ? formatJapaneseDateTime(target.latestCheckIn.checkedAt) : "まだ記録がありません"}
+                          </p>
+                        </div>
+                        <PushRegistration lineLinkCode={target.link.lineLinkCode} enabled={Boolean(target.link.pushEnabled)} />
+                      </article>
+                    );
+                  })
+                ) : (
+                  <p>まだ承認済みの見守り対象がありません。招待リンクから承認すると表示されます。</p>
+                )}
+              </div>
+            </section>
+          ) : null}
+
           <section className="panel auth-panel">
             <div>
               <p className="panel-label">アカウント</p>
@@ -501,7 +470,7 @@ export function SafetyApp() {
                   <input
                     value={password}
                     onChange={(event) => setPassword(event.target.value)}
-                    placeholder="パスワード"
+                    placeholder="パスワード 8文字以上"
                     type="password"
                   />
                   <button type="button" onClick={() => handleAuth("signin")} disabled={loading}>
@@ -510,11 +479,13 @@ export function SafetyApp() {
                   <button type="button" onClick={() => handleAuth("signup")} disabled={loading}>
                     新規登録
                   </button>
+                  <p className="small-copy">パスワードは8文字以上で、英字と数字を含めてください。</p>
                 </div>
               )
             ) : (
               <span className="pill warning">デモモード</span>
             )}
+            {!authUser ? <p className="small-copy">一度ログインすると、ログアウトするまで自動ログインされます。</p> : null}
           </section>
 
           <section className="panel">
@@ -592,6 +563,13 @@ export function SafetyApp() {
             <p className="panel-label">スマホに追加</p>
             <h2>すぐ開けるようにする</h2>
             <p>ホーム画面に追加すると、ブラウザを探さず毎日の確認を始められます。</p>
+            {authUser ? (
+              <PushRegistration
+                userId={authUser.uid}
+                enabled={Boolean(profile.pushEnabled)}
+                label="本人通知を登録"
+              />
+            ) : null}
             <button type="button" className="wide-action" onClick={handleInstallApp} disabled={isStandalone}>
               {isStandalone ? "ホーム画面から起動中" : deferredInstallPrompt ? "ホーム画面に追加" : "追加方法を表示"}
             </button>

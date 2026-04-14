@@ -17,6 +17,14 @@ type CheckIn = {
   nextDueAt: Timestamp | string;
 };
 
+type UserProfile = {
+  id: string;
+  displayName: string;
+  email: string;
+  pushToken?: string;
+  pushEnabled?: boolean;
+};
+
 type WatchLink = {
   memberId: string;
   familyId: string;
@@ -37,6 +45,7 @@ type SendResult = {
 };
 
 const HOUR_MS = 60 * 60 * 1000;
+const SELF_REMINDER_TEXT = "安否確認の時間です。アプリを開いて「無事です」を押してください。";
 const FAMILY_ALERT_TEXT = "見守り中の方の安否確認がまだ完了していません。必要に応じて直接ご確認ください。";
 
 export async function GET(request: NextRequest) {
@@ -67,7 +76,7 @@ async function evaluateSafetyNotifications() {
     }
 
     const settings = settingsDoc.data() as NotificationSettings;
-    const reminded = await queueSelfReminder(checkIn.memberId, settings);
+    const reminded = await queueSelfReminder(checkIn.memberId);
     if (reminded) {
       selfReminders += 1;
     }
@@ -95,7 +104,7 @@ async function evaluateSafetyNotifications() {
   return { ok: true, selfReminders, familyAlerts };
 }
 
-async function queueSelfReminder(memberId: string, settings: NotificationSettings) {
+async function queueSelfReminder(memberId: string) {
   const db = getAdminDb();
   const dedupeId = `${memberId}_self_${new Date().toISOString().slice(0, 10)}`;
   const logRef = db.collection("notificationLogs").doc(dedupeId);
@@ -105,16 +114,64 @@ async function queueSelfReminder(memberId: string, settings: NotificationSetting
     return false;
   }
 
+  const userDoc = await db.collection("users").doc(memberId).get();
+  const user = userDoc.data() as UserProfile | undefined;
+  const result = await sendSelfReminder(user);
+
   await logRef.set({
     memberId,
     recipientName: "本人",
-    channel: settings.reminderChannel,
+    channel: result.channel,
     kind: "self_reminder",
-    status: "queued",
-    message: "本日の安否確認がまだ完了していません。",
+    status: result.status,
+    message: result.message,
     createdAt: FieldValue.serverTimestamp()
   });
   return true;
+}
+
+async function sendSelfReminder(user: UserProfile | undefined): Promise<SendResult> {
+  if (user?.pushEnabled && user.pushToken) {
+    try {
+      await getAdminMessaging().send({
+        token: user.pushToken,
+        notification: {
+          title: "あんぴノート",
+          body: SELF_REMINDER_TEXT
+        },
+        data: {
+          type: "self_reminder",
+          openPath: "/#checkin"
+        },
+        android: {
+          priority: "high",
+          notification: {
+            channelId: "anpi_reminders",
+            defaultSound: true,
+            defaultVibrateTimings: true
+          }
+        }
+      });
+
+      return {
+        channel: "push",
+        status: "sent",
+        message: "本人へアプリ通知を送信しました。"
+      };
+    } catch (error) {
+      return {
+        channel: "push",
+        status: "failed",
+        message: error instanceof Error ? error.message : "本人へのアプリ通知に失敗しました。"
+      };
+    }
+  }
+
+  return {
+    channel: "email",
+    status: "fallback",
+    message: "本人用アプリ通知が未登録のため、メール代替通知をキューに登録しました。"
+  };
 }
 
 async function sendFamilyAlert(memberId: string, watchLinkId: string, link: WatchLink) {
@@ -181,10 +238,16 @@ async function tryPushNotification(link: WatchLink): Promise<SendResult> {
       },
       data: {
         type: "family_alert",
-        memberId: link.memberId
+        memberId: link.memberId,
+        openPath: "/"
       },
       android: {
-        priority: "high"
+        priority: "high",
+        notification: {
+          channelId: "anpi_alerts",
+          defaultSound: true,
+          defaultVibrateTimings: true
+        }
       }
     });
 

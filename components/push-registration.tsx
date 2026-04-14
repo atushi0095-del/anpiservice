@@ -1,13 +1,16 @@
 "use client";
 
 import { useState } from "react";
+import { getFirebaseClients, hasFirebaseConfig } from "@/lib/firebase";
 
 type PushRegistrationProps = {
-  lineLinkCode: string;
+  lineLinkCode?: string;
+  userId?: string;
   enabled: boolean;
+  label?: string;
 };
 
-export function PushRegistration({ lineLinkCode, enabled }: PushRegistrationProps) {
+export function PushRegistration({ lineLinkCode, userId, enabled, label = "アプリ通知を登録" }: PushRegistrationProps) {
   const [status, setStatus] = useState(enabled ? "アプリ通知は登録済みです。" : "Androidアプリで通知を登録できます。");
   const [registering, setRegistering] = useState(false);
 
@@ -32,6 +35,15 @@ export function PushRegistration({ lineLinkCode, enabled }: PushRegistrationProp
 
       await PushNotifications.register();
 
+      await PushNotifications.addListener("pushNotificationActionPerformed", (event) => {
+        const openPath = event.notification.data?.openPath;
+        if (typeof openPath === "string") {
+          window.location.href = openPath;
+        } else {
+          window.location.href = "/";
+        }
+      });
+
       const registration = await new Promise<string>((resolve, reject) => {
         const cleanup: Array<{ remove: () => Promise<void> }> = [];
 
@@ -48,13 +60,16 @@ export function PushRegistration({ lineLinkCode, enabled }: PushRegistrationProp
         }, 15000);
       });
 
+      const token = userId && hasFirebaseConfig() ? await getFirebaseClients().auth.currentUser?.getIdToken() : undefined;
       const response = await fetch("/api/push/register", {
         method: "POST",
         headers: {
-          "Content-Type": "application/json"
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {})
         },
         body: JSON.stringify({
           lineLinkCode,
+          userId,
           pushToken: registration
         })
       });
@@ -75,7 +90,7 @@ export function PushRegistration({ lineLinkCode, enabled }: PushRegistrationProp
     <div className="push-registration">
       <p>{status}</p>
       <button type="button" onClick={handleRegisterPush} disabled={registering || enabled}>
-        {registering ? "登録中..." : enabled ? "登録済み" : "アプリ通知を登録"}
+        {registering ? "登録中..." : enabled ? "登録済み" : label}
       </button>
     </div>
   );

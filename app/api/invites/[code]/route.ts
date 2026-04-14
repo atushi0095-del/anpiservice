@@ -66,6 +66,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
   }
 
   const decoded = await getAdminAuth().verifyIdToken(idToken);
+  const body = (await request.json().catch(() => ({}))) as { mutualWatch?: boolean };
   const db = getAdminDb();
   const inviteDoc = await findInvite(code);
 
@@ -103,6 +104,59 @@ export async function POST(request: NextRequest, context: RouteContext) {
     },
     { merge: true }
   );
+
+  if (body.mutualWatch) {
+    const reverseCode = `ANPI-${Math.floor(100000 + Math.random() * 900000)}`;
+    const memberDoc = await db.collection("users").doc(invite.memberId).get();
+    const member = memberDoc.data();
+    const existingFamilyUser = await db.collection("users").doc(decoded.uid).get();
+    const existingFamily = existingFamilyUser.data();
+    await db.collection("watchLinks").doc(`${decoded.uid}_${invite.memberId}`).set(
+      {
+        memberId: decoded.uid,
+        familyId: invite.memberId,
+        familyName: member?.displayName || "見守り相手",
+        familyEmail: member?.email || "",
+        lineLinkCode: reverseCode,
+        inviteStatus: "accepted",
+        acceptedAt: now,
+        lineLinked: false,
+        pushEnabled: false,
+        preferredChannel: "push",
+        active: true,
+        createdAt: now
+      },
+      { merge: true }
+    );
+
+    await db.collection("notificationSettings").doc(decoded.uid).set(
+      {
+        userId: decoded.uid,
+        frequencyDays: 1,
+        graceHours: 6,
+        reminderChannel: "email",
+        familyChannel: "push"
+      },
+      { merge: true }
+    );
+
+    await db.collection("checkIns").add({
+      id: `checkin-${Date.now()}`,
+      memberId: decoded.uid,
+      checkedAt: now,
+      nextDueAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+      status: "safe"
+    });
+
+    await db.collection("users").doc(decoded.uid).set(
+      {
+        displayName: existingFamily?.displayName || familyName,
+        email: familyEmail,
+        role: existingFamily?.role || "family"
+      },
+      { merge: true }
+    );
+  }
 
   if (inviteDoc.id !== acceptedLinkId) {
     await inviteDoc.ref.set(
