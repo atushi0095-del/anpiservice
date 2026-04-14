@@ -8,6 +8,7 @@ import {
   signOut,
   type User
 } from "firebase/auth";
+import { PushRegistration } from "@/components/push-registration";
 import { demoCheckIn, demoFamily, demoMember, demoNotificationLogs, demoSettings, demoWatchLinks } from "@/lib/demo-data";
 import { getFirebaseClients, hasFirebaseConfig } from "@/lib/firebase";
 import {
@@ -443,6 +444,7 @@ export function SafetyApp() {
                   </span>
                   <span className={link.pushEnabled ? "pill success" : "pill"}>通知優先: {channelLabel(link)}</span>
                   <p className="line-code">LINE連携コード: {link.lineLinkCode}</p>
+                  <PushRegistration lineLinkCode={link.lineLinkCode} enabled={Boolean(link.pushEnabled)} />
                 </div>
                 <div className="family-actions">
                   {lineOfficialAccountUrl ? (

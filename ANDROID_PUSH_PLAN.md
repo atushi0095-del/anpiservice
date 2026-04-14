@@ -150,6 +150,26 @@ PWAをほぼそのままAndroidアプリとして包む。
 10. クローズドテスト
 11. 公開
 
+## 現在入っているAndroid向け土台
+
+- Capacitor設定: `capacitor.config.ts`
+- Androidビルド確認: `npm run build:android`
+- Android同期: `npm run android:sync`
+- Android Studio起動: `npm run android:open`
+- Push通知登録UI: 家族カード内の「アプリ通知を登録」
+- Push token登録API: `POST /api/push/register`
+
+Androidプロジェクトを生成するコマンド:
+
+```powershell
+npm run android:sync
+npm run android:open
+```
+
+この構成では、AndroidアプリはCapacitorでVercel公開URLを表示する。Web APIもVercel上のものをそのまま使う。
+
+Android Studioで開いた後、Firebase ConsoleからAndroidアプリ `jp.anpinote.app` を追加し、`google-services.json` をAndroidプロジェクトへ配置する。
+
 ## 注意
 
 アプリ通知そのものはLINEのような月額メッセージ課金を避けやすいが、Firestore、Vercel、Firebase Admin/API実行の利用量に応じたコストは別に発生し得る。

@@ -5,11 +5,18 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "build:android": "npm run build",
+    "android:sync": "cap sync android",
+    "android:open": "cap open android",
     "start": "next start",
     "lint": "next lint",
     "test": "vitest run"
   },
   "dependencies": {
+    "@capacitor/android": "^8.3.0",
+    "@capacitor/cli": "^8.3.0",
+    "@capacitor/core": "^8.3.0",
+    "@capacitor/push-notifications": "^8.0.3",
     "firebase": "^12.6.0",
     "firebase-admin": "^13.8.0",
     "next": "^16.0.8",
@@ -20,8 +27,10 @@
     "@types/node": "^24.10.1",
     "@types/react": "^19.2.7",
     "@types/react-dom": "^19.2.3",
+    "cross-env": "^10.1.0",
     "eslint": "^9.39.1",
     "eslint-config-next": "^16.0.8",
+    "cross-env": "^10.1.0",
     "typescript": "^5.9.3",
     "vitest": "^4.0.10"
   }
