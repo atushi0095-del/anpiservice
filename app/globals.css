@@ -242,7 +242,13 @@ button {
   box-shadow: 0 5px 12px rgba(23, 33, 31, 0.18);
 }
 
-.checkin-button.is-saving,
+.checkin-button.is-saving {
+  cursor: wait;
+  background: #1f8cff;
+  color: white;
+  box-shadow: 0 0 0 7px rgba(97, 171, 255, 0.24), 0 12px 26px rgba(23, 33, 31, 0.2);
+}
+
 .checkin-button:disabled {
   cursor: wait;
   background: #d8ecff;
@@ -253,7 +259,8 @@ button {
   animation: checkinPanelPulse 1100ms ease;
 }
 
-.checkin-complete .checkin-button {
+.checkin-complete .checkin-button,
+.checkin-button.is-complete {
   animation: checkinButtonFlash 1100ms ease forwards;
 }
 

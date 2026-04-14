@@ -385,7 +385,7 @@ export function SafetyApp() {
           </p>
           <button
             type="button"
-            className={`checkin-button ${checkInSaving ? "is-saving" : ""}`}
+            className={`checkin-button ${checkInSaving ? "is-saving" : ""} ${checkInFeedback ? "is-complete" : ""}`}
             onClick={handleCheckIn}
             disabled={checkInSaving}
             aria-live="polite"
