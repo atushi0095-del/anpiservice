@@ -28,6 +28,8 @@ Android Studioで開いたら、実機またはエミュレーターを選んで
 このPCの現在の `java -version` は Java 8 のため、Gradle CLIビルドにはJava 11以上が必要。
 Android Studioで開く場合は、Android Studio同梱JDKを使えばよい。
 
+このプロジェクトは日本語フォルダ配下にあるため、WindowsのAndroid Gradle Pluginのパスチェックを回避する目的で `android/gradle.properties` に `android.overridePathCheck=true` を設定済み。
+
 CLIでビルドする場合は、JDK 17をインストールし、`JAVA_HOME` をJDK 17へ向ける。
 
 例:
