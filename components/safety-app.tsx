@@ -15,12 +15,21 @@ import {
   addFamilyContact,
   createLineLinkCode,
   deactivateFamilyContact,
+  loadFamilyDashboard,
   loadMemberDashboard,
   saveCheckIn,
   saveSettings
 } from "@/lib/firestore-store";
 import { createCheckIn, formatJapaneseDateTime, getSafetyStatus, statusLabel } from "@/lib/safety";
-import type { CheckIn, CheckInFrequencyDays, NotificationLog, NotificationSettings, UserProfile, WatchLink } from "@/lib/types";
+import type {
+  CheckIn,
+  CheckInFrequencyDays,
+  FamilyWatchTarget,
+  NotificationLog,
+  NotificationSettings,
+  UserProfile,
+  WatchLink
+} from "@/lib/types";
 
 const frequencyOptions: Array<{ label: string; value: CheckInFrequencyDays }> = [
   { label: "毎日", value: 1 },
@@ -54,13 +63,21 @@ function isValidEmailAddress(value: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
 }
 
-function inviteMailHref(link: WatchLink) {
+function inviteMailHref(link: WatchLink, inviteUrl: string) {
   const subject = encodeURIComponent("あんぴノート 見守り連絡先のお願い");
   const body = encodeURIComponent(
-    `${link.familyName}さん\n\nあんぴノートの見守り連絡先として登録しました。\n未チェックイン時は、アプリ通知またはメールでお知らせします。`
+    `${link.familyName}さん\n\nあんぴノートの見守り連絡先として招待しました。\n次のリンクを開いて、メール登録またはログイン後に承認してください。\n\n${inviteUrl}\n\n承認後、未チェックイン時はアプリ通知またはメールでお知らせします。`
   );
 
   return `mailto:${link.familyEmail}?subject=${subject}&body=${body}`;
+}
+
+function createInviteUrl(link: WatchLink) {
+  if (typeof window === "undefined") {
+    return `/invite/${encodeURIComponent(link.lineLinkCode)}`;
+  }
+
+  return `${window.location.origin}/invite/${encodeURIComponent(link.lineLinkCode)}`;
 }
 
 function channelLabel(link: WatchLink) {
@@ -78,6 +95,7 @@ export function SafetyApp() {
   const [settings, setSettings] = useState<NotificationSettings>(demoSettings);
   const [latestCheckIn, setLatestCheckIn] = useState<CheckIn>(demoCheckIn);
   const [watchLinks, setWatchLinks] = useState<WatchLink[]>(demoWatchLinks);
+  const [familyTargets, setFamilyTargets] = useState<FamilyWatchTarget[]>([]);
   const [logs, setLogs] = useState<NotificationLog[]>(demoNotificationLogs);
   const [isStandalone, setIsStandalone] = useState(false);
   const [email, setEmail] = useState("");
@@ -173,7 +191,15 @@ export function SafetyApp() {
         setLatestCheckIn(data.latestCheckIn);
         setWatchLinks(data.watchLinks);
         setLogs(data.logs);
-        setMessage("Firebaseに接続しました。チェックインと設定を保存します。");
+        if (data.profile.role === "family") {
+          const targets = await loadFamilyDashboard(user.uid);
+          setFamilyTargets(targets);
+          setActiveScreen("family");
+          setMessage("家族アカウントで接続しました。承認済みの見守り対象を表示します。");
+        } else {
+          setFamilyTargets([]);
+          setMessage("Firebaseに接続しました。チェックインと設定を保存します。");
+        }
       } catch (error) {
         setMessage(error instanceof Error ? error.message : "Firebaseデータの読み込みに失敗しました。");
       } finally {
@@ -306,12 +332,27 @@ export function SafetyApp() {
       },
       ...current
     ]);
-    setMessage("家族連絡先を追加しました。「招待メール作成」からメールアプリを開けます。");
+    setMessage("家族連絡先を追加しました。招待リンクを送ると、家族が承認して登録できます。");
   }
 
   async function handleDeactivate(link: WatchLink) {
     const next = firebaseEnabled && authUser ? await deactivateFamilyContact(link) : { ...link, active: false };
     setWatchLinks((current) => current.map((item) => (item.id === link.id ? next : item)));
+  }
+
+  async function handleShareInvite(link: WatchLink) {
+    const inviteUrl = createInviteUrl(link);
+    if (navigator.share) {
+      await navigator.share({
+        title: "あんぴノート 見守り招待",
+        text: `${link.familyName}さん、あんぴノートの見守り招待です。`,
+        url: inviteUrl
+      });
+      return;
+    }
+
+    await navigator.clipboard.writeText(inviteUrl);
+    setMessage("招待リンクをコピーしました。メールやメッセージで送れます。");
   }
 
   async function handleInstallApp() {
@@ -324,6 +365,73 @@ export function SafetyApp() {
     const choice = await deferredInstallPrompt.userChoice;
     setDeferredInstallPrompt(null);
     setMessage(choice.outcome === "accepted" ? "ホーム画面に追加しました。" : "ホーム画面追加をキャンセルしました。");
+  }
+
+  if (authUser && profile.role === "family") {
+    return (
+      <main className="phone-app">
+        <header className="app-header">
+          <div className="brand-row">
+            <img src="/icon.svg" alt="あんぴノート" className="app-icon" />
+            <div>
+              <p className="eyebrow">家族の見守り</p>
+              <h1>あんぴノート</h1>
+            </div>
+          </div>
+          <button type="button" className="install-button" onClick={handleInstallApp} disabled={isStandalone}>
+            {isStandalone ? "追加済み" : "アプリを追加"}
+          </button>
+        </header>
+
+        <p className="app-message">{loading ? "処理中です。" : message}</p>
+
+        <section className="screen-page">
+          <section className="panel">
+            <p className="panel-label">見守り対象</p>
+            <h2>見守り中の方</h2>
+            <div className="family-list">
+              {familyTargets.length ? (
+                familyTargets.map((target) => {
+                  const targetStatus = target.latestCheckIn
+                    ? getSafetyStatus(target.latestCheckIn.nextDueAt, target.settings?.graceHours || 6)
+                    : "overdue";
+                  return (
+                    <article className="family-item" key={target.link.id}>
+                      <div>
+                        <h3>{target.member.displayName}</h3>
+                        <p>{target.member.email}</p>
+                        <span className={`pill ${targetStatus === "ok" ? "success" : "warning"}`}>{statusLabel(targetStatus)}</span>
+                        <p className="small-copy">
+                          最終確認:{" "}
+                          {target.latestCheckIn ? formatJapaneseDateTime(target.latestCheckIn.checkedAt) : "まだ記録がありません"}
+                        </p>
+                      </div>
+                      <PushRegistration lineLinkCode={target.link.lineLinkCode} enabled={Boolean(target.link.pushEnabled)} />
+                    </article>
+                  );
+                })
+              ) : (
+                <p>まだ承認済みの見守り対象がありません。招待リンクから承認してください。</p>
+              )}
+            </div>
+          </section>
+
+          <section className="panel">
+            <p className="panel-label">アカウント</p>
+            <h2>{profile.displayName} さん</h2>
+            <p className="small-copy">家族アカウントとしてログイン中です。</p>
+            <button type="button" className="wide-action" onClick={handleSignOut}>
+              ログアウト
+            </button>
+          </section>
+        </section>
+
+        <footer>
+          <a href="/terms">利用規約</a>
+          <a href="/privacy">プライバシーポリシー</a>
+        </footer>
+      </main>
+    );
   }
 
   return (
@@ -425,11 +533,21 @@ export function SafetyApp() {
                   <div>
                     <h3>{link.familyName}</h3>
                     <p>{link.familyEmail}</p>
+                    <span className={link.inviteStatus === "accepted" || link.active ? "pill success" : "pill warning"}>
+                      {link.inviteStatus === "accepted" || link.active ? "承認済み" : "招待待ち"}
+                    </span>
                     <span className={link.pushEnabled ? "pill success" : "pill"}>通知優先: {channelLabel(link)}</span>
-                    <PushRegistration lineLinkCode={link.lineLinkCode} enabled={Boolean(link.pushEnabled)} />
+                    {link.active ? (
+                      <PushRegistration lineLinkCode={link.lineLinkCode} enabled={Boolean(link.pushEnabled)} />
+                    ) : (
+                      <p className="small-copy">家族が招待リンクを承認すると、アプリ通知を登録できます。</p>
+                    )}
                   </div>
                   <div className="family-actions">
-                    <a className="action-button" href={inviteMailHref(link)}>
+                    <button type="button" onClick={() => handleShareInvite(link)}>
+                      招待リンク
+                    </button>
+                    <a className="action-button" href={inviteMailHref(link, createInviteUrl(link))}>
                       招待メール
                     </a>
                     <button type="button" onClick={() => handleDeactivate(link)} disabled={!link.active}>

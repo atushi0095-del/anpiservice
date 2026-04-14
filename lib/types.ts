@@ -25,6 +25,9 @@ export type WatchLink = {
   familyName: string;
   familyEmail: string;
   lineLinkCode: string;
+  inviteStatus?: "pending" | "accepted";
+  acceptedAt?: string;
+  acceptedFamilyId?: string;
   lineUserId?: string;
   lineLinked: boolean;
   lineLinkedAt?: string;
@@ -34,6 +37,13 @@ export type WatchLink = {
   preferredChannel?: "push" | "line" | "email";
   active: boolean;
   createdAt: string;
+};
+
+export type FamilyWatchTarget = {
+  link: WatchLink;
+  member: UserProfile;
+  latestCheckIn?: CheckIn;
+  settings?: NotificationSettings;
 };
 
 export type CheckIn = {

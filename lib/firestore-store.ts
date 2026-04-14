@@ -13,7 +13,7 @@ import {
 } from "firebase/firestore";
 import { getFirebaseClients } from "@/lib/firebase";
 import { createCheckIn } from "@/lib/safety";
-import type { CheckIn, NotificationLog, NotificationSettings, UserProfile, WatchLink } from "@/lib/types";
+import type { CheckIn, FamilyWatchTarget, NotificationLog, NotificationSettings, UserProfile, WatchLink } from "@/lib/types";
 
 export type MemberDashboardData = {
   profile: UserProfile;
@@ -108,18 +108,20 @@ export async function addFamilyContact(memberId: string, familyName: string, fam
   const { db } = getFirebaseClients();
   const createdAt = new Date().toISOString();
   const familyKey = familyEmail.trim().toLowerCase().replace(/[^a-z0-9]/g, "_");
-  const id = `${memberId}_${familyKey}`;
+  const code = createLineLinkCode();
+  const id = `${memberId}_invite_${code.replace(/[^A-Z0-9]/g, "_")}`;
   const link: WatchLink = {
     id,
     memberId,
     familyId: familyKey,
     familyName,
     familyEmail,
-    lineLinkCode: createLineLinkCode(),
+    lineLinkCode: code,
+    inviteStatus: "pending",
     lineLinked: false,
     pushEnabled: false,
     preferredChannel: "push",
-    active: true,
+    active: false,
     createdAt
   };
 
@@ -148,4 +150,33 @@ export async function deactivateFamilyContact(link: WatchLink): Promise<WatchLin
   const { db } = getFirebaseClients();
   await updateDoc(doc(db, "watchLinks", link.id), { active: false });
   return { ...link, active: false };
+}
+
+export async function loadFamilyDashboard(familyId: string): Promise<FamilyWatchTarget[]> {
+  const { db } = getFirebaseClients();
+  const linksSnap = await getDocs(
+    query(collection(db, "watchLinks"), where("familyId", "==", familyId), where("active", "==", true))
+  );
+
+  const targets = await Promise.all(
+    linksSnap.docs.map(async (item) => {
+      const link = { id: item.id, ...(item.data() as Omit<WatchLink, "id">) };
+      const [memberSnap, settingsSnap, checkInsSnap] = await Promise.all([
+        getDoc(doc(db, "users", link.memberId)),
+        getDoc(doc(db, "notificationSettings", link.memberId)),
+        getDocs(
+          query(collection(db, "checkIns"), where("memberId", "==", link.memberId), orderBy("checkedAt", "desc"), limit(1))
+        )
+      ]);
+
+      return {
+        link,
+        member: memberSnap.data() as UserProfile,
+        settings: settingsSnap.exists() ? (settingsSnap.data() as NotificationSettings) : undefined,
+        latestCheckIn: checkInsSnap.docs[0]?.data() as CheckIn | undefined
+      };
+    })
+  );
+
+  return targets.filter((target) => Boolean(target.member));
 }

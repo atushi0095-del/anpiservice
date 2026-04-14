@@ -36,6 +36,8 @@ export const demoWatchLinks: WatchLink[] = [
     familyName: demoFamily.displayName,
     familyEmail: demoFamily.email,
     lineLinkCode: "ANPI-123456",
+    inviteStatus: "accepted",
+    acceptedAt: now.toISOString(),
     lineUserId: "Uxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
     lineLinked: true,
     lineLinkedAt: now.toISOString(),
@@ -49,8 +51,9 @@ export const demoWatchLinks: WatchLink[] = [
     familyName: "佐藤 みどり",
     familyEmail: "midori@example.jp",
     lineLinkCode: "ANPI-654321",
+    inviteStatus: "pending",
     lineLinked: false,
-    active: true,
+    active: false,
     createdAt: now.toISOString()
   }
 ];

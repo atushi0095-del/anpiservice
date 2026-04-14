@@ -1,0 +1,181 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import {
+  createUserWithEmailAndPassword,
+  onAuthStateChanged,
+  signInWithEmailAndPassword,
+  type User
+} from "firebase/auth";
+import { PushRegistration } from "@/components/push-registration";
+import { getFirebaseClients, hasFirebaseConfig } from "@/lib/firebase";
+
+type InviteAcceptanceProps = {
+  code: string;
+};
+
+type InvitePreview = {
+  code: string;
+  familyName: string;
+  familyEmail: string;
+  inviteStatus: "pending" | "accepted";
+  member: {
+    id: string;
+    displayName: string;
+    email: string;
+  };
+};
+
+export function InviteAcceptance({ code }: InviteAcceptanceProps) {
+  const firebaseEnabled = hasFirebaseConfig();
+  const normalizedCode = decodeURIComponent(code).trim().toUpperCase();
+  const [invite, setInvite] = useState<InvitePreview | null>(null);
+  const [authUser, setAuthUser] = useState<User | null>(null);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [message, setMessage] = useState("招待を確認しています。");
+  const [loading, setLoading] = useState(true);
+  const [acceptedCode, setAcceptedCode] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetch(`/api/invites/${encodeURIComponent(normalizedCode)}`)
+      .then(async (response) => {
+        const data = await response.json();
+        if (!response.ok) {
+          throw new Error(data.error || "招待を確認できませんでした。");
+        }
+        setInvite(data as InvitePreview);
+        setEmail((data as InvitePreview).familyEmail || "");
+        setMessage("招待内容を確認してください。");
+      })
+      .catch((error) => setMessage(error instanceof Error ? error.message : "招待を確認できませんでした。"))
+      .finally(() => setLoading(false));
+  }, [normalizedCode]);
+
+  useEffect(() => {
+    if (!firebaseEnabled) {
+      return;
+    }
+
+    const { auth } = getFirebaseClients();
+    return onAuthStateChanged(auth, (user) => {
+      setAuthUser(user);
+      if (user?.email) {
+        setEmail(user.email);
+      }
+    });
+  }, [firebaseEnabled]);
+
+  async function handleAuth(mode: "signin" | "signup") {
+    if (!firebaseEnabled) {
+      setMessage("Firebase設定後に招待承認を利用できます。");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const { auth } = getFirebaseClients();
+      if (mode === "signin") {
+        await signInWithEmailAndPassword(auth, email, password);
+      } else {
+        await createUserWithEmailAndPassword(auth, email, password);
+      }
+      setPassword("");
+      setMessage("ログインしました。承認ボタンを押してください。");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "ログインに失敗しました。");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleAccept() {
+    if (!authUser) {
+      setMessage("先にメールでログインまたは新規登録してください。");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const token = await authUser.getIdToken();
+      const response = await fetch(`/api/invites/${encodeURIComponent(normalizedCode)}`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || "招待の承認に失敗しました。");
+      }
+      setAcceptedCode(data.lineLinkCode);
+      setMessage("見守り招待を承認しました。アプリ通知を登録できます。");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "招待の承認に失敗しました。");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <main className="phone-app invite-page">
+      <header className="app-header">
+        <div className="brand-row">
+          <img src="/icon.svg" alt="あんぴノート" className="app-icon" />
+          <div>
+            <p className="eyebrow">見守り招待</p>
+            <h1>あんぴノート</h1>
+          </div>
+        </div>
+      </header>
+
+      <p className="app-message">{loading ? "処理中です。" : message}</p>
+
+      <section className="panel invite-card">
+        <p className="panel-label">招待内容</p>
+        <h2>{invite ? `${invite.member.displayName} さんを見守る` : "招待を確認中"}</h2>
+        <p>
+          承認すると、未チェックイン時にこの家族アカウントへ通知できるようになります。
+          本人の見守り情報は、承認した家族だけが確認できます。
+        </p>
+        {invite ? (
+          <div className="setting-line">
+            <span>招待先</span>
+            <strong>{invite.familyEmail}</strong>
+          </div>
+        ) : null}
+      </section>
+
+      {!authUser ? (
+        <section className="panel">
+          <p className="panel-label">家族アカウント</p>
+          <h2>ログインまたは登録</h2>
+          <div className="auth-form invite-auth">
+            <input value={email} onChange={(event) => setEmail(event.target.value)} placeholder="メールアドレス" type="email" />
+            <input value={password} onChange={(event) => setPassword(event.target.value)} placeholder="パスワード" type="password" />
+            <button type="button" onClick={() => handleAuth("signin")} disabled={loading}>
+              ログイン
+            </button>
+            <button type="button" onClick={() => handleAuth("signup")} disabled={loading}>
+              新規登録
+            </button>
+          </div>
+        </section>
+      ) : (
+        <section className="panel">
+          <p className="panel-label">承認</p>
+          <h2>{authUser.email} で承認します</h2>
+          <button type="button" className="wide-action" onClick={handleAccept} disabled={loading || Boolean(acceptedCode)}>
+            {acceptedCode ? "承認済み" : "見守りを承認"}
+          </button>
+          {acceptedCode ? <PushRegistration lineLinkCode={acceptedCode} enabled={false} /> : null}
+        </section>
+      )}
+
+      <footer>
+        <a href="/">アプリを開く</a>
+        <a href="/privacy">プライバシーポリシー</a>
+      </footer>
+    </main>
+  );
+}
