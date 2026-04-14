@@ -20,7 +20,7 @@ export function PushRegistration({ lineLinkCode, enabled }: PushRegistrationProp
       ]);
 
       if (!Capacitor.isNativePlatform()) {
-        setStatus("アプリ通知はAndroidアプリ版で利用できます。Web版ではLINEまたはメール代替を使います。");
+        setStatus("アプリ通知はAndroidアプリ版で利用できます。Web版ではメール通知を使います。");
         return;
       }
 

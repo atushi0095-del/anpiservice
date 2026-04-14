@@ -43,6 +43,142 @@ main {
   min-height: 100vh;
 }
 
+.phone-app {
+  width: min(560px, 100%);
+  margin: 0 auto;
+  padding: 18px 14px 104px;
+}
+
+.app-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 0 14px;
+}
+
+.app-header h1 {
+  font-size: 1.65rem;
+}
+
+.install-button,
+.wide-action {
+  border-color: var(--teal);
+  background: var(--teal);
+  color: white;
+  padding: 0 14px;
+}
+
+.install-button {
+  min-width: 112px;
+}
+
+.install-button:disabled,
+.wide-action:disabled {
+  cursor: default;
+  border-color: var(--line);
+  background: #edf2f0;
+  color: var(--muted);
+}
+
+.app-message {
+  margin: 0 0 12px;
+  border: 1px solid #d9eee9;
+  border-radius: 8px;
+  background: #eff8f5;
+  color: #24443e;
+  padding: 10px 12px;
+  line-height: 1.55;
+}
+
+.app-screen {
+  min-height: calc(100vh - 210px);
+}
+
+.screen-page {
+  display: grid;
+  gap: 14px;
+}
+
+.screen-page[hidden] {
+  display: none;
+}
+
+.main-checkin {
+  min-height: 460px;
+  justify-content: center;
+  gap: 18px;
+  text-align: center;
+}
+
+.main-checkin h2 {
+  font-size: clamp(2rem, 2.45rem, 2.5rem);
+}
+
+.main-checkin .checkin-button {
+  min-height: 148px;
+  border-radius: 8px;
+  font-size: 2rem;
+}
+
+.checkin-summary {
+  display: grid;
+  gap: 6px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.14);
+  padding: 12px;
+  text-align: left;
+}
+
+.checkin-summary span {
+  color: rgba(255, 255, 255, 0.78);
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.checkin-summary strong {
+  color: white;
+}
+
+.compact-panel {
+  min-height: 0;
+}
+
+.wide-action {
+  width: 100%;
+  margin-top: 12px;
+}
+
+.bottom-nav {
+  position: fixed;
+  right: max(12px, calc((100vw - 560px) / 2 + 12px));
+  bottom: 12px;
+  left: max(12px, calc((100vw - 560px) / 2 + 12px));
+  z-index: 20;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.96);
+  padding: 7px;
+  box-shadow: 0 12px 30px rgba(23, 33, 31, 0.2);
+  backdrop-filter: blur(10px);
+}
+
+.bottom-nav button {
+  min-height: 48px;
+  border-color: transparent;
+  background: transparent;
+  color: var(--muted);
+  padding: 0;
+}
+
+.bottom-nav button.is-active {
+  background: var(--teal);
+  color: white;
+}
+
 .top-band {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(320px, 42vw);
@@ -253,6 +389,11 @@ button {
   cursor: wait;
   background: #d8ecff;
   color: #0d4f8f;
+}
+
+.checkin-button.is-saving:disabled {
+  background: #1f8cff;
+  color: white;
 }
 
 .checkin-complete {
@@ -535,7 +676,7 @@ footer {
   display: flex;
   justify-content: center;
   gap: 24px;
-  padding: 32px 20px 44px;
+  padding: 28px 20px 8px;
 }
 
 footer a {
