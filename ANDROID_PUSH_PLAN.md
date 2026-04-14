@@ -170,6 +170,8 @@ npm run android:open
 
 Android Studioで開いた後、Firebase ConsoleからAndroidアプリ `jp.anpinote.app` を追加し、`google-services.json` をAndroidプロジェクトへ配置する。
 
+詳細な公開前チェックは `ANDROID_RELEASE_CHECKLIST.md` を参照する。
+
 ## 注意
 
 アプリ通知そのものはLINEのような月額メッセージ課金を避けやすいが、Firestore、Vercel、Firebase Admin/API実行の利用量に応じたコストは別に発生し得る。
