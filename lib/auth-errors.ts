@@ -31,6 +31,10 @@ export function toAuthMessage(error: unknown) {
 export function toAppErrorMessage(error: unknown) {
   const message = error instanceof Error ? error.message : "";
 
+  if (message.includes("invite-error:")) {
+    return message.replace("invite-error:", "").trim() || "招待の承認に失敗しました。";
+  }
+
   if (message.includes("client is offline") || message.includes("offline") || message.includes("unavailable")) {
     return "通信できませんでした。インターネット接続を確認し、少し時間をおいてもう一度お試しください。";
   }

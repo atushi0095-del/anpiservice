@@ -114,7 +114,7 @@ export function InviteAcceptance({ code }: InviteAcceptanceProps) {
       });
       const data = await response.json();
       if (!response.ok) {
-        throw new Error(data.error || "招待の承認に失敗しました。");
+        throw new Error(data.error ? `invite-error: ${data.error}` : "招待の承認に失敗しました。");
       }
       setAcceptedCode(data.lineLinkCode);
       setMessage("見守り招待を承認しました。アプリ通知を登録できます。");

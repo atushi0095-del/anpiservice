@@ -73,6 +73,11 @@ function inviteMailHref(link: WatchLink, inviteUrl: string) {
   return `mailto:${link.familyEmail}?subject=${subject}&body=${body}`;
 }
 
+function lineShareHref(link: WatchLink, inviteUrl: string) {
+  const text = encodeURIComponent(`${link.familyName}さん、あんぴノートの見守り招待です。\n${inviteUrl}`);
+  return `https://line.me/R/msg/text/?${text}`;
+}
+
 function createInviteUrl(link: WatchLink) {
   const configuredOrigin = process.env.NEXT_PUBLIC_APP_ORIGIN?.replace(/\/$/, "");
 
@@ -352,17 +357,21 @@ export function SafetyApp() {
 
   async function handleShareInvite(link: WatchLink) {
     const inviteUrl = createInviteUrl(link);
-    if (navigator.share) {
-      await navigator.share({
-        title: "あんぴノート 見守り招待",
-        text: `${link.familyName}さん、あんぴノートの見守り招待です。`,
-        url: inviteUrl
-      });
-      return;
-    }
+    try {
+      if (navigator.share) {
+        await navigator.share({
+          title: "あんぴノート 見守り招待",
+          text: `${link.familyName}さん、あんぴノートの見守り招待です。`,
+          url: inviteUrl
+        });
+        return;
+      }
 
-    await navigator.clipboard.writeText(inviteUrl);
-    setMessage("招待リンクをコピーしました。メールやメッセージで送れます。");
+      await navigator.clipboard.writeText(inviteUrl);
+      setMessage("招待リンクをコピーしました。メールやメッセージで送れます。");
+    } catch {
+      setMessage("共有をキャンセルしました。LINE送信や招待メールも使えます。");
+    }
   }
 
   async function handleInstallApp() {
@@ -522,8 +531,11 @@ export function SafetyApp() {
                   </div>
                   <div className="family-actions">
                     <button type="button" onClick={() => handleShareInvite(link)}>
-                      招待リンク
+                      共有
                     </button>
+                    <a className="action-button" href={lineShareHref(link, createInviteUrl(link))} target="_blank" rel="noreferrer">
+                      LINEで送る
+                    </a>
                     <a className="action-button" href={inviteMailHref(link, createInviteUrl(link))}>
                       招待メール
                     </a>
