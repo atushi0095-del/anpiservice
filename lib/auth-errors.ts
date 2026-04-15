@@ -28,6 +28,28 @@ export function toAuthMessage(error: unknown) {
   return message || "認証に失敗しました。";
 }
 
+export function toAppErrorMessage(error: unknown) {
+  const message = error instanceof Error ? error.message : "";
+
+  if (message.includes("client is offline") || message.includes("offline") || message.includes("unavailable")) {
+    return "通信できませんでした。インターネット接続を確認し、少し時間をおいてもう一度お試しください。";
+  }
+
+  if (message.includes("permission-denied") || message.includes("Missing or insufficient permissions")) {
+    return "この情報を見る権限がありません。ログイン中のアカウントを確認してください。";
+  }
+
+  if (message.includes("not-found")) {
+    return "必要なデータが見つかりませんでした。";
+  }
+
+  if (message.includes("Firebase environment variables")) {
+    return "Firebase設定が読み込まれていません。Vercelの環境変数と再デプロイを確認してください。";
+  }
+
+  return message || "処理に失敗しました。";
+}
+
 export function isStrongEnoughPassword(password: string) {
   return password.length >= 8 && /[A-Za-z]/.test(password) && /\d/.test(password);
 }

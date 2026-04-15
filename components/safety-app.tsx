@@ -9,7 +9,7 @@ import {
   type User
 } from "firebase/auth";
 import { PushRegistration } from "@/components/push-registration";
-import { isStrongEnoughPassword, toAuthMessage } from "@/lib/auth-errors";
+import { isStrongEnoughPassword, toAppErrorMessage, toAuthMessage } from "@/lib/auth-errors";
 import { demoCheckIn, demoFamily, demoMember, demoNotificationLogs, demoSettings, demoWatchLinks } from "@/lib/demo-data";
 import { getFirebaseClients, hasFirebaseConfig } from "@/lib/firebase";
 import {
@@ -74,6 +74,12 @@ function inviteMailHref(link: WatchLink, inviteUrl: string) {
 }
 
 function createInviteUrl(link: WatchLink) {
+  const configuredOrigin = process.env.NEXT_PUBLIC_APP_ORIGIN?.replace(/\/$/, "");
+
+  if (configuredOrigin) {
+    return `${configuredOrigin}/invite/${encodeURIComponent(link.lineLinkCode)}`;
+  }
+
   if (typeof window === "undefined") {
     return `/invite/${encodeURIComponent(link.lineLinkCode)}`;
   }
@@ -200,7 +206,7 @@ export function SafetyApp() {
             : "Firebaseに接続しました。チェックインと設定を保存します。"
         );
       } catch (error) {
-        setMessage(error instanceof Error ? error.message : "Firebaseデータの読み込みに失敗しました。");
+        setMessage(toAppErrorMessage(error));
       } finally {
         setLoading(false);
       }
@@ -276,7 +282,7 @@ export function SafetyApp() {
       setCheckInFeedback(true);
       window.setTimeout(() => setCheckInFeedback(false), 2600);
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "チェックインの記録に失敗しました。");
+      setMessage(toAppErrorMessage(error));
     } finally {
       window.setTimeout(() => setCheckInSaving(false), 450);
     }

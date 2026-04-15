@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { toAppErrorMessage } from "@/lib/auth-errors";
 import { getFirebaseClients, hasFirebaseConfig } from "@/lib/firebase";
 
 type PushRegistrationProps = {
@@ -80,7 +81,7 @@ export function PushRegistration({ lineLinkCode, userId, enabled, label = "ア�
 
       setStatus("アプリ通知を登録しました。未チェックイン時はこちらへ通知します。");
     } catch (error) {
-      setStatus(error instanceof Error ? error.message : "アプリ通知の登録に失敗しました。");
+      setStatus(toAppErrorMessage(error));
     } finally {
       setRegistering(false);
     }

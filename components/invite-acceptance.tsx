@@ -8,7 +8,7 @@ import {
   type User
 } from "firebase/auth";
 import { PushRegistration } from "@/components/push-registration";
-import { isStrongEnoughPassword, toAuthMessage } from "@/lib/auth-errors";
+import { isStrongEnoughPassword, toAppErrorMessage, toAuthMessage } from "@/lib/auth-errors";
 import { getFirebaseClients, hasFirebaseConfig } from "@/lib/firebase";
 
 type InviteAcceptanceProps = {
@@ -50,7 +50,7 @@ export function InviteAcceptance({ code }: InviteAcceptanceProps) {
         setEmail((data as InvitePreview).familyEmail || "");
         setMessage("招待内容を確認してください。");
       })
-      .catch((error) => setMessage(error instanceof Error ? error.message : "招待を確認できませんでした。"))
+      .catch((error) => setMessage(toAppErrorMessage(error)))
       .finally(() => setLoading(false));
   }, [normalizedCode]);
 
@@ -119,7 +119,7 @@ export function InviteAcceptance({ code }: InviteAcceptanceProps) {
       setAcceptedCode(data.lineLinkCode);
       setMessage("見守り招待を承認しました。アプリ通知を登録できます。");
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "招待の承認に失敗しました。");
+      setMessage(toAppErrorMessage(error));
     } finally {
       setLoading(false);
     }
