@@ -5,7 +5,6 @@ import {
   getDoc,
   getDocs,
   limit,
-  orderBy,
   query,
   setDoc,
   updateDoc,
@@ -31,6 +30,34 @@ const defaultSettings = (userId: string): NotificationSettings => ({
   familyChannel: "push"
 });
 
+function dateString(value: unknown): string {
+  if (typeof value === "string") {
+    return value;
+  }
+
+  if (value instanceof Date) {
+    return value.toISOString();
+  }
+
+  if (value && typeof value === "object" && "toDate" in value && typeof value.toDate === "function") {
+    return value.toDate().toISOString();
+  }
+
+  return new Date().toISOString();
+}
+
+function byNewestDate<T>(field: keyof T) {
+  return (left: T, right: T) => new Date(dateString(right[field])).getTime() - new Date(dateString(left[field])).getTime();
+}
+
+function normalizeLog(id: string, data: Omit<NotificationLog, "id">): NotificationLog {
+  return {
+    id,
+    ...data,
+    createdAt: dateString(data.createdAt)
+  };
+}
+
 export function createLineLinkCode(): string {
   const value = Math.floor(100000 + Math.random() * 900000);
   return `ANPI-${value}`;
@@ -39,8 +66,21 @@ export function createLineLinkCode(): string {
 export async function loadMemberDashboard(user: { uid: string; email: string | null }): Promise<MemberDashboardData> {
   const { db } = getFirebaseClients();
   const userRef = doc(db, "users", user.uid);
-  const userSnap = await getDoc(userRef);
   const now = new Date().toISOString();
+  const settingsRef = doc(db, "notificationSettings", user.uid);
+  const checkInsQuery = query(
+    collection(db, "checkIns"),
+    where("memberId", "==", user.uid),
+    limit(20)
+  );
+
+  const [userSnap, settingsSnap, checkInsSnap, linksSnap, logsSnap] = await Promise.all([
+    getDoc(userRef),
+    getDoc(settingsRef),
+    getDocs(checkInsQuery),
+    getDocs(query(collection(db, "watchLinks"), where("memberId", "==", user.uid))),
+    getDocs(query(collection(db, "notificationLogs"), where("memberId", "==", user.uid), limit(20)))
+  ]);
 
   const profile: UserProfile = userSnap.exists()
     ? (userSnap.data() as UserProfile)
@@ -52,43 +92,27 @@ export async function loadMemberDashboard(user: { uid: string; email: string | n
         createdAt: now
       };
 
-  if (!userSnap.exists()) {
-    await setDoc(userRef, profile);
-  }
-
-  const settingsRef = doc(db, "notificationSettings", user.uid);
-  const settingsSnap = await getDoc(settingsRef);
   const settings = settingsSnap.exists() ? (settingsSnap.data() as NotificationSettings) : defaultSettings(user.uid);
-
-  if (!settingsSnap.exists()) {
-    await setDoc(settingsRef, settings);
-  }
-
-  const checkInsQuery = query(
-    collection(db, "checkIns"),
-    where("memberId", "==", user.uid),
-    orderBy("checkedAt", "desc"),
-    limit(1)
-  );
-  const checkInsSnap = await getDocs(checkInsQuery);
-  const latestCheckIn = checkInsSnap.docs[0]?.data() as CheckIn | undefined;
+  const latestCheckIn = checkInsSnap.docs
+    .map((item) => item.data() as CheckIn)
+    .sort(byNewestDate<CheckIn>("checkedAt"))[0];
   const ensuredCheckIn = latestCheckIn ?? createCheckIn(user.uid, settings, new Date());
 
-  if (!latestCheckIn) {
-    await addDoc(collection(db, "checkIns"), ensuredCheckIn);
-  }
-
-  const linksSnap = await getDocs(query(collection(db, "watchLinks"), where("memberId", "==", user.uid)));
-  const logsSnap = await getDocs(
-    query(collection(db, "notificationLogs"), where("memberId", "==", user.uid), orderBy("createdAt", "desc"), limit(20))
-  );
+  await Promise.all([
+    userSnap.exists() ? Promise.resolve() : setDoc(userRef, profile),
+    settingsSnap.exists() ? Promise.resolve() : setDoc(settingsRef, settings),
+    latestCheckIn ? Promise.resolve() : addDoc(collection(db, "checkIns"), ensuredCheckIn)
+  ]);
 
   return {
     profile,
     settings,
     latestCheckIn: ensuredCheckIn,
     watchLinks: linksSnap.docs.map((item) => ({ id: item.id, ...(item.data() as Omit<WatchLink, "id">) })),
-    logs: logsSnap.docs.map((item) => ({ id: item.id, ...(item.data() as Omit<NotificationLog, "id">) }))
+    logs: logsSnap.docs
+      .map((item) => normalizeLog(item.id, item.data() as Omit<NotificationLog, "id">))
+      .sort(byNewestDate<NotificationLog>("createdAt"))
+      .slice(0, 10)
   };
 }
 
@@ -97,9 +121,8 @@ export async function saveSettings(settings: NotificationSettings) {
   await setDoc(doc(db, "notificationSettings", settings.userId), settings, { merge: true });
 }
 
-export async function saveCheckIn(memberId: string, settings: NotificationSettings): Promise<CheckIn> {
+export async function saveCheckIn(memberId: string, settings: NotificationSettings, checkIn = createCheckIn(memberId, settings)): Promise<CheckIn> {
   const { db } = getFirebaseClients();
-  const checkIn = createCheckIn(memberId, settings);
   await addDoc(collection(db, "checkIns"), checkIn);
   return checkIn;
 }
@@ -164,16 +187,17 @@ export async function loadFamilyDashboard(familyId: string): Promise<FamilyWatch
       const [memberSnap, settingsSnap, checkInsSnap] = await Promise.all([
         getDoc(doc(db, "users", link.memberId)),
         getDoc(doc(db, "notificationSettings", link.memberId)),
-        getDocs(
-          query(collection(db, "checkIns"), where("memberId", "==", link.memberId), orderBy("checkedAt", "desc"), limit(1))
-        )
+        getDocs(query(collection(db, "checkIns"), where("memberId", "==", link.memberId), limit(20)))
       ]);
+      const latestCheckIn = checkInsSnap.docs
+        .map((checkIn) => checkIn.data() as CheckIn)
+        .sort(byNewestDate<CheckIn>("checkedAt"))[0];
 
       return {
         link,
         member: memberSnap.data() as UserProfile,
         settings: settingsSnap.exists() ? (settingsSnap.data() as NotificationSettings) : undefined,
-        latestCheckIn: checkInsSnap.docs[0]?.data() as CheckIn | undefined
+        latestCheckIn
       };
     })
   );

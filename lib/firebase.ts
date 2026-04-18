@@ -1,6 +1,12 @@
 import { getApps, initializeApp, type FirebaseApp } from "firebase/app";
 import { getAuth, type Auth } from "firebase/auth";
-import { getFirestore, type Firestore } from "firebase/firestore";
+import {
+  getFirestore,
+  initializeFirestore,
+  persistentLocalCache,
+  persistentMultipleTabManager,
+  type Firestore
+} from "firebase/firestore";
 
 type FirebaseClients = {
   app: FirebaseApp;
@@ -33,9 +39,19 @@ export function getFirebaseClients(): FirebaseClients {
       appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID
     });
 
+  let db: Firestore;
+  try {
+    db = initializeFirestore(app, {
+      experimentalAutoDetectLongPolling: true,
+      localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() })
+    });
+  } catch {
+    db = getFirestore(app);
+  }
+
   return {
     app,
     auth: getAuth(app),
-    db: getFirestore(app)
+    db
   };
 }

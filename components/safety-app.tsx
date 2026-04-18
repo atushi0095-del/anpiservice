@@ -21,6 +21,7 @@ import {
   saveCheckIn,
   saveSettings
 } from "@/lib/firestore-store";
+import type { MemberDashboardData } from "@/lib/firestore-store";
 import { createCheckIn, formatJapaneseDateTime, getSafetyStatus, statusLabel } from "@/lib/safety";
 import type {
   CheckIn,
@@ -39,6 +40,7 @@ const frequencyOptions: Array<{ label: string; value: CheckInFrequencyDays }> = 
 ];
 
 const demoStorageKey = "anpi-note-demo-state";
+const dashboardCachePrefix = "anpi-note-dashboard-";
 const appScreens = [
   { id: "checkin", label: "確認" },
   { id: "family", label: "家族" },
@@ -98,6 +100,27 @@ function channelLabel(link: WatchLink) {
   }
 
   return "メール代替";
+}
+
+function dashboardCacheKey(userId: string) {
+  return `${dashboardCachePrefix}${userId}`;
+}
+
+function readCachedDashboard(userId: string): MemberDashboardData | null {
+  try {
+    const raw = window.localStorage.getItem(dashboardCacheKey(userId));
+    return raw ? (JSON.parse(raw) as MemberDashboardData) : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeCachedDashboard(userId: string, data: MemberDashboardData) {
+  try {
+    window.localStorage.setItem(dashboardCacheKey(userId), JSON.stringify(data));
+  } catch {
+    // localStorage may be unavailable in private browsing.
+  }
 }
 
 export function SafetyApp() {
@@ -201,6 +224,16 @@ export function SafetyApp() {
         return;
       }
 
+      const cached = readCachedDashboard(user.uid);
+      if (cached) {
+        setProfile(cached.profile);
+        setSettings(cached.settings);
+        setLatestCheckIn(cached.latestCheckIn);
+        setWatchLinks(cached.watchLinks);
+        setLogs(cached.logs);
+        setMessage("前回のデータを表示しています。最新情報を確認中です...");
+      }
+
       setLoading(true);
       try {
         const data = await loadMemberDashboard(user);
@@ -209,9 +242,10 @@ export function SafetyApp() {
         setLatestCheckIn(data.latestCheckIn);
         setWatchLinks(data.watchLinks);
         setLogs(data.logs);
+        writeCachedDashboard(user.uid, data);
         setMessage("Firebaseに接続しました。チェックインと設定を保存します。");
       } catch (error) {
-        setMessage(toAppErrorMessage(error));
+        setMessage(cached ? "最新情報の取得に失敗しました。前回のデータを表示しています。" : toAppErrorMessage(error));
       } finally {
         setLoading(false);
       }
@@ -305,27 +339,33 @@ export function SafetyApp() {
     setCheckInSaving(true);
     setCheckInFeedback(false);
 
+    const memberId = firebaseEnabled && authUser ? authUser.uid : profile.id;
+    const next = createCheckIn(memberId, settings);
+    const nextLog: NotificationLog = {
+      id: `log-${Date.now()}`,
+      memberId: profile.id,
+      recipientName: profile.displayName,
+      channel: "app",
+      kind: "self_reminder",
+      status: "sent",
+      message: "本人が「無事です」を記録しました。",
+      createdAt: next.checkedAt
+    };
+    const nextLogs = [nextLog, ...logs];
+    setLatestCheckIn(next);
+    setLogs(nextLogs);
+    setMessage(`チェックインを記録しました。クラウドへ保存しています...`);
+    setCheckInFeedback(true);
+    window.setTimeout(() => setCheckInFeedback(false), 2600);
+
     try {
-      const next = firebaseEnabled && authUser ? await saveCheckIn(authUser.uid, settings) : createCheckIn(profile.id, settings);
-      setLatestCheckIn(next);
-      setLogs((current) => [
-        {
-          id: `log-${Date.now()}`,
-          memberId: profile.id,
-          recipientName: profile.displayName,
-          channel: "app",
-          kind: "self_reminder",
-          status: "sent",
-          message: "本人が「無事です」を記録しました。",
-          createdAt: next.checkedAt
-        },
-        ...current
-      ]);
+      if (firebaseEnabled && authUser) {
+        await saveCheckIn(authUser.uid, settings, next);
+        writeCachedDashboard(authUser.uid, { profile, settings, latestCheckIn: next, watchLinks, logs: nextLogs });
+      }
       setMessage(`チェックインを記録しました。最終確認: ${formatJapaneseDateTime(next.checkedAt)}`);
-      setCheckInFeedback(true);
-      window.setTimeout(() => setCheckInFeedback(false), 2600);
     } catch (error) {
-      setMessage(toAppErrorMessage(error));
+      setMessage(`画面には記録しましたが、クラウド保存に失敗しました。家族への反映には再度通信が必要です。${toAppErrorMessage(error)}`);
     } finally {
       window.setTimeout(() => setCheckInSaving(false), 450);
     }
@@ -333,13 +373,15 @@ export function SafetyApp() {
 
   async function handleFrequencyChange(value: CheckInFrequencyDays) {
     const nextSettings = { ...settings, frequencyDays: value };
+    const nextCheckIn = createCheckIn(profile.id, nextSettings, new Date(latestCheckIn.checkedAt));
     setSettings(nextSettings);
-    setLatestCheckIn(createCheckIn(profile.id, nextSettings, new Date(latestCheckIn.checkedAt)));
+    setLatestCheckIn(nextCheckIn);
     if (firebaseEnabled && authUser) {
       setFrequencySaving(value);
       setMessage("確認リズムを保存しています...");
       try {
         await saveSettings(nextSettings);
+        writeCachedDashboard(authUser.uid, { profile, settings: nextSettings, latestCheckIn: nextCheckIn, watchLinks, logs });
         setMessage("確認リズムを保存しました。");
       } catch (error) {
         setMessage(toAppErrorMessage(error));
@@ -380,10 +422,11 @@ export function SafetyApp() {
             createdAt: new Date().toISOString()
             };
 
-      setWatchLinks((current) => [next, ...current]);
+      const nextWatchLinks = [next, ...watchLinks];
+      setWatchLinks(nextWatchLinks);
       setFamilyName("");
       setFamilyEmail("");
-      setLogs((current) => [
+      const nextLogs: NotificationLog[] = [
         {
           id: `log-${Date.now()}`,
           memberId: profile.id,
@@ -395,8 +438,12 @@ export function SafetyApp() {
           message: `${next.familyEmail} を見守り連絡先に追加しました。`,
           createdAt: new Date().toISOString()
         },
-        ...current
-      ]);
+        ...logs
+      ];
+      setLogs(nextLogs);
+      if (authUser) {
+        writeCachedDashboard(authUser.uid, { profile, settings, latestCheckIn, watchLinks: nextWatchLinks, logs: nextLogs });
+      }
       setMessage("家族連絡先を追加しました。招待リンクを送れます。");
     } catch (error) {
       setMessage(toAppErrorMessage(error));
@@ -410,7 +457,11 @@ export function SafetyApp() {
     setMessage("見守り解除を保存しています...");
     try {
       const next = firebaseEnabled && authUser ? await deactivateFamilyContact(link) : { ...link, active: false };
-      setWatchLinks((current) => current.map((item) => (item.id === link.id ? next : item)));
+      const nextWatchLinks = watchLinks.map((item) => (item.id === link.id ? next : item));
+      setWatchLinks(nextWatchLinks);
+      if (authUser) {
+        writeCachedDashboard(authUser.uid, { profile, settings, latestCheckIn, watchLinks: nextWatchLinks, logs });
+      }
       setMessage("見守りを解除しました。");
     } catch (error) {
       setMessage(toAppErrorMessage(error));
