@@ -1,5 +1,5 @@
-const CACHE_NAME = "anpi-watch-v1";
-const APP_SHELL = ["/", "/icon.svg"];
+const CACHE_NAME = "kazoku-bosai-note-v1";
+const APP_SHELL = ["/", "/terms", "/privacy", "/disclaimer", "/icon.svg"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(APP_SHELL)));

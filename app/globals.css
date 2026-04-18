@@ -34,6 +34,11 @@ input {
   font: inherit;
 }
 
+textarea,
+select {
+  font: inherit;
+}
+
 button,
 a {
   -webkit-tap-highlight-color: transparent;
@@ -172,12 +177,17 @@ main {
   backdrop-filter: blur(10px);
 }
 
+.bottom-nav.disaster-nav {
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+}
+
 .bottom-nav button {
   min-height: 48px;
   border-color: transparent;
   background: transparent;
   color: var(--muted);
   padding: 0;
+  font-size: 0.88rem;
 }
 
 .bottom-nav button.is-active {
@@ -601,6 +611,25 @@ button {
   padding: 0 12px;
 }
 
+.family-add-form select,
+.panel select,
+.panel textarea,
+.panel input[type="date"] {
+  width: 100%;
+  min-height: 48px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: white;
+  color: var(--ink);
+  padding: 10px 12px;
+}
+
+.panel textarea {
+  min-height: 96px;
+  resize: vertical;
+  line-height: 1.6;
+}
+
 .auth-panel button,
 .family-add-form button {
   border-color: var(--teal);
@@ -623,6 +652,124 @@ button {
 .log-list {
   display: grid;
   gap: 12px;
+}
+
+.compact-list {
+  margin: 0;
+  padding-left: 20px;
+  color: #33413d;
+  line-height: 1.8;
+}
+
+.disaster-home {
+  min-height: 540px;
+  gap: 16px;
+}
+
+.metric-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.metric-grid div {
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.14);
+  padding: 12px;
+}
+
+.metric-grid span {
+  display: block;
+  margin-bottom: 4px;
+  color: rgba(255, 255, 255, 0.78);
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.metric-grid strong {
+  color: white;
+  font-size: 1.2rem;
+}
+
+.emergency-launch {
+  margin-top: 8px;
+}
+
+.emergency-panel {
+  gap: 18px;
+  background: #982f38;
+  border-color: #982f38;
+}
+
+.emergency-actions {
+  display: grid;
+  gap: 10px;
+}
+
+.emergency-actions button {
+  min-height: 72px;
+  border-color: white;
+  background: white;
+  color: var(--teal);
+  font-size: 1.25rem;
+}
+
+.emergency-actions .warning-action {
+  color: #982f38;
+}
+
+.emergency-actions .quiet-action {
+  color: #39423f;
+}
+
+.note-item,
+.supply-item {
+  display: grid;
+  gap: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fbfdfc;
+  padding: 14px;
+}
+
+.note-item + .note-item,
+.supply-item + .supply-item {
+  margin-top: 12px;
+}
+
+.supply-list {
+  display: grid;
+  gap: 12px;
+}
+
+.supply-item p {
+  margin: 0;
+  color: var(--muted);
+}
+
+.legal-links {
+  display: grid;
+  gap: 10px;
+}
+
+.legal-links a {
+  display: flex;
+  min-height: 48px;
+  align-items: center;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--teal);
+  padding: 0 12px;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.danger-button {
+  width: 100%;
+  border-color: #bd5247;
+  background: #bd5247;
+  color: white;
+  padding: 0 16px;
 }
 
 .family-item,
@@ -836,6 +983,10 @@ footer a {
   .family-actions button {
     flex: 1;
   }
+
+  .bottom-nav.disaster-nav {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
 }
 
 @media (max-width: 420px) {
@@ -856,5 +1007,9 @@ footer a {
   .primary-link,
   .secondary-link {
     width: 100%;
+  }
+
+  .bottom-nav button {
+    font-size: 0.78rem;
   }
 }
