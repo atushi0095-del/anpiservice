@@ -260,7 +260,7 @@ h1,
 h2,
 h3,
 p {
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
 }
 
 h1 {
@@ -573,21 +573,20 @@ button {
 
 .auth-panel {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: 1fr;
   gap: 16px;
-  align-items: end;
+  align-items: stretch;
 }
 
 .auth-form,
 .family-add-form {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr)) repeat(2, auto);
+  grid-template-columns: 1fr;
   gap: 10px;
   align-items: center;
 }
 
 .family-add-form {
-  grid-template-columns: repeat(2, minmax(0, 1fr)) auto;
   margin-bottom: 16px;
 }
 
@@ -608,6 +607,10 @@ button {
   background: var(--teal);
   color: white;
   padding: 0 16px;
+}
+
+.auth-panel > button {
+  justify-self: start;
 }
 
 .family-list,

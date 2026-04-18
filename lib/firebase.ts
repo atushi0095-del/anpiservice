@@ -3,8 +3,7 @@ import { getAuth, type Auth } from "firebase/auth";
 import {
   getFirestore,
   initializeFirestore,
-  persistentLocalCache,
-  persistentMultipleTabManager,
+  memoryLocalCache,
   type Firestore
 } from "firebase/firestore";
 
@@ -43,7 +42,7 @@ export function getFirebaseClients(): FirebaseClients {
   try {
     db = initializeFirestore(app, {
       experimentalAutoDetectLongPolling: true,
-      localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() })
+      localCache: memoryLocalCache()
     });
   } catch {
     db = getFirestore(app);
