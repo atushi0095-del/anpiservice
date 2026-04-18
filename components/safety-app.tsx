@@ -161,6 +161,15 @@ export function SafetyApp() {
     () => getSafetyStatus(latestCheckIn.nextDueAt, settings.graceHours),
     [latestCheckIn.nextDueAt, settings.graceHours]
   );
+  const checkedInToday = useMemo(() => {
+    const checkedAt = new Date(latestCheckIn.checkedAt);
+    const today = new Date();
+    return (
+      checkedAt.getFullYear() === today.getFullYear() &&
+      checkedAt.getMonth() === today.getMonth() &&
+      checkedAt.getDate() === today.getDate()
+    );
+  }, [latestCheckIn.checkedAt]);
 
   useEffect(() => {
     if ("serviceWorker" in navigator) {
@@ -360,7 +369,6 @@ export function SafetyApp() {
     setLogs(nextLogs);
     setMessage(`チェックインを記録しました。クラウドへ保存しています...`);
     setCheckInFeedback(true);
-    window.setTimeout(() => setCheckInFeedback(false), 2600);
 
     try {
       if (firebaseEnabled && authUser) {
@@ -535,7 +543,7 @@ export function SafetyApp() {
         <div className={activeScreen === "checkin" ? "screen-page is-active" : "screen-page"} hidden={activeScreen !== "checkin"}>
           <section className={`status-panel main-checkin status-${status} ${checkInFeedback ? "checkin-complete" : ""}`}>
             <p className="panel-label">今日の確認</p>
-            <h2>{checkInFeedback ? "記録しました" : statusLabel(status)}</h2>
+            <h2>{checkedInToday ? "本日完了" : statusLabel(status)}</h2>
             <button
               type="button"
               className={`checkin-button ${checkInSaving ? "is-saving" : ""} ${checkInFeedback ? "is-complete" : ""}`}
@@ -543,9 +551,9 @@ export function SafetyApp() {
               disabled={checkInSaving}
               aria-live="polite"
             >
-              {checkInSaving ? "記録中..." : checkInFeedback ? "完了" : "無事です"}
+              {checkInSaving ? "記録中..." : checkedInToday ? "本日完了" : "無事です"}
             </button>
-            {checkInFeedback ? <p className="checkin-feedback">今日の安否確認を保存しました。</p> : null}
+            {checkedInToday ? <p className="checkin-feedback">今日の安否確認は完了しています。</p> : null}
             <div className="checkin-summary">
               <span>最終確認</span>
               <strong>{formatJapaneseDateTime(latestCheckIn.checkedAt)}</strong>

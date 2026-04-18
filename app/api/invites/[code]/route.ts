@@ -126,25 +126,27 @@ export async function POST(request: NextRequest, context: RouteContext) {
       const member = memberDoc.data();
       const existingFamilyUser = await db.collection("users").doc(decoded.uid).get();
       const existingFamily = existingFamilyUser.data();
+      const reverseData = reverseLink.data();
+      const reversePayload: Record<string, unknown> = {
+        memberId: decoded.uid,
+        familyId: invite.memberId,
+        familyName: member?.displayName || "見守り相手",
+        familyEmail: member?.email || "",
+        lineLinkCode: reverseCode,
+        inviteStatus: "accepted",
+        acceptedAt: now,
+        lineLinked: false,
+        pushEnabled: reverseData?.pushEnabled || false,
+        preferredChannel: "push",
+        active: true,
+        createdAt: reverseData?.createdAt || now
+      };
 
-      await reverseLinkRef.set(
-        {
-          memberId: decoded.uid,
-          familyId: invite.memberId,
-          familyName: member?.displayName || "見守り相手",
-          familyEmail: member?.email || "",
-          lineLinkCode: reverseCode,
-          inviteStatus: "accepted",
-          acceptedAt: now,
-          lineLinked: false,
-          pushEnabled: reverseLink.data()?.pushEnabled || false,
-          pushToken: reverseLink.data()?.pushToken,
-          preferredChannel: "push",
-          active: true,
-          createdAt: reverseLink.data()?.createdAt || now
-        },
-        { merge: true }
-      );
+      if (reverseData?.pushToken) {
+        reversePayload.pushToken = reverseData.pushToken;
+      }
+
+      await reverseLinkRef.set(reversePayload, { merge: true });
 
       const settingsRef = db.collection("notificationSettings").doc(decoded.uid);
       const settingsSnap = await settingsRef.get();
