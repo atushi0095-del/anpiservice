@@ -9,19 +9,18 @@ import {
   type User
 } from "firebase/auth";
 import { PushRegistration } from "@/components/push-registration";
+import {
+  addFamilyContactViaApi,
+  deactivateFamilyContactViaApi,
+  loadFamilyDashboardViaApi,
+  loadMemberDashboardViaApi,
+  saveCheckInViaApi,
+  saveSettingsViaApi
+} from "@/lib/api-store";
+import type { MemberDashboardData } from "@/lib/api-store";
 import { isStrongEnoughPassword, toAppErrorMessage, toAuthMessage } from "@/lib/auth-errors";
 import { demoCheckIn, demoFamily, demoMember, demoNotificationLogs, demoSettings, demoWatchLinks } from "@/lib/demo-data";
 import { getFirebaseClients, hasFirebaseConfig } from "@/lib/firebase";
-import {
-  addFamilyContact,
-  createLineLinkCode,
-  deactivateFamilyContact,
-  loadFamilyDashboard,
-  loadMemberDashboard,
-  saveCheckIn,
-  saveSettings
-} from "@/lib/firestore-store";
-import type { MemberDashboardData } from "@/lib/firestore-store";
 import { createCheckIn, formatJapaneseDateTime, getSafetyStatus, statusLabel } from "@/lib/safety";
 import type {
   CheckIn,
@@ -64,6 +63,11 @@ type DemoSnapshot = {
 
 function isValidEmailAddress(value: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
+}
+
+function createLineLinkCode(): string {
+  const value = Math.floor(100000 + Math.random() * 900000);
+  return `ANPI-${value}`;
 }
 
 function inviteMailHref(link: WatchLink, inviteUrl: string) {
@@ -236,7 +240,7 @@ export function SafetyApp() {
 
       setLoading(true);
       try {
-        const data = await loadMemberDashboard(user);
+        const data = await loadMemberDashboardViaApi(user);
         setProfile(data.profile);
         setSettings(data.settings);
         setLatestCheckIn(data.latestCheckIn);
@@ -259,7 +263,7 @@ export function SafetyApp() {
 
     let cancelled = false;
     setRefreshingFamily(true);
-    loadFamilyDashboard(authUser.uid)
+    loadFamilyDashboardViaApi(authUser)
       .then((targets) => {
         if (!cancelled) {
           setFamilyTargets(targets);
@@ -360,7 +364,7 @@ export function SafetyApp() {
 
     try {
       if (firebaseEnabled && authUser) {
-        await saveCheckIn(authUser.uid, settings, next);
+        await saveCheckInViaApi(authUser, next);
         writeCachedDashboard(authUser.uid, { profile, settings, latestCheckIn: next, watchLinks, logs: nextLogs });
       }
       setMessage(`チェックインを記録しました。最終確認: ${formatJapaneseDateTime(next.checkedAt)}`);
@@ -380,7 +384,7 @@ export function SafetyApp() {
       setFrequencySaving(value);
       setMessage("確認リズムを保存しています...");
       try {
-        await saveSettings(nextSettings);
+        await saveSettingsViaApi(authUser, nextSettings);
         writeCachedDashboard(authUser.uid, { profile, settings: nextSettings, latestCheckIn: nextCheckIn, watchLinks, logs });
         setMessage("確認リズムを保存しました。");
       } catch (error) {
@@ -407,7 +411,7 @@ export function SafetyApp() {
     try {
       const next: WatchLink =
         firebaseEnabled && authUser
-          ? await addFamilyContact(authUser.uid, familyName.trim(), familyEmail.trim())
+          ? await addFamilyContactViaApi(authUser, familyName.trim(), familyEmail.trim())
           : {
             id: `watch-${Date.now()}`,
             memberId: profile.id,
@@ -456,7 +460,7 @@ export function SafetyApp() {
     setDeactivatingId(link.id);
     setMessage("見守り解除を保存しています...");
     try {
-      const next = firebaseEnabled && authUser ? await deactivateFamilyContact(link) : { ...link, active: false };
+      const next = firebaseEnabled && authUser ? await deactivateFamilyContactViaApi(authUser, link) : { ...link, active: false };
       const nextWatchLinks = watchLinks.map((item) => (item.id === link.id ? next : item));
       setWatchLinks(nextWatchLinks);
       if (authUser) {
