@@ -661,6 +661,28 @@ button {
   line-height: 1.8;
 }
 
+.review-feedback,
+.latest-share-meta {
+  margin: 12px 0 0;
+  color: var(--muted);
+  font-size: 0.92rem;
+  line-height: 1.6;
+}
+
+.review-feedback.is-complete {
+  border-radius: 8px;
+  background: var(--mint);
+  color: var(--teal);
+  padding: 10px 12px;
+  font-weight: 700;
+}
+
+.wide-action.is-complete {
+  border-color: var(--green);
+  background: var(--green);
+  box-shadow: 0 0 0 5px rgba(44, 143, 91, 0.16);
+}
+
 .disaster-home {
   min-height: 540px;
   gap: 16px;

@@ -114,6 +114,7 @@ export function DisasterNoteApp() {
   const [manualLocation, setManualLocation] = useState("");
   const [selectedEmergencyStatus, setSelectedEmergencyStatus] = useState<EmergencyStatus>("safe");
   const [lastEmergencyStatus, setLastEmergencyStatus] = useState<EmergencyStatus | null>(null);
+  const [reviewJustMarked, setReviewJustMarked] = useState(false);
 
   useEffect(() => {
     setData(loadLocalData());
@@ -244,7 +245,12 @@ export function DisasterNoteApp() {
     });
   }
 
-  function recordEmergencyStatus(status: EmergencyStatus) {
+  function chooseEmergencyStatus(status: EmergencyStatus) {
+    setSelectedEmergencyStatus(status);
+    setEmergencyMessage(statusMessages[status]);
+  }
+
+  function recordEmergencyStatus(status: EmergencyStatus, messageOverride?: string) {
     const now = new Date().toISOString();
     const member = data.members[0] || defaultDisasterNoteData.members[0];
     setSelectedEmergencyStatus(status);
@@ -254,7 +260,7 @@ export function DisasterNoteApp() {
       memberId: member.id,
       memberName: member.name,
       status,
-      message: emergencyMessage || statusMessages[status],
+      message: messageOverride || emergencyMessage || statusMessages[status],
       locationText: data.notificationSettings.locationShareEnabled ? manualLocation.trim() : undefined,
       createdAt: now
     };
@@ -281,7 +287,8 @@ export function DisasterNoteApp() {
   }
 
   function markReviewed() {
-    updateData({ ...data, lastReviewedAt: new Date().toISOString() }, "今月の点検を記録しました。");
+    setReviewJustMarked(true);
+    updateData({ ...data, lastReviewedAt: new Date().toISOString() }, "今月の確認を記録しました。");
   }
 
   return (
@@ -337,14 +344,18 @@ export function DisasterNoteApp() {
               <li>備蓄の期限と数量を確認</li>
               <li>服薬、アレルギー、注意事項を更新</li>
             </ul>
-            <button type="button" className="wide-action" onClick={markReviewed}>
-              確認済みにする
+            <p className={reviewJustMarked ? "review-feedback is-complete" : "review-feedback"}>
+              最終確認: {formatDate(data.lastReviewedAt)}
+            </p>
+            <button type="button" className={reviewJustMarked ? "wide-action is-complete" : "wide-action"} onClick={markReviewed}>
+              {reviewJustMarked ? "確認済みです" : "確認済みにする"}
             </button>
           </section>
 
           <section className="panel compact-panel">
             <p className="panel-label">最新の共有</p>
-            <h2>{latestLog ? statusLabels[latestLog.status] : "まだ記録がありません"}</h2>
+            <h2>{latestLog ? `${latestLog.memberName}さん: ${statusLabels[latestLog.status]}` : "まだ記録がありません"}</h2>
+            {latestLog ? <p className="latest-share-meta">{formatDate(latestLog.createdAt)} の記録</p> : null}
             <p>{latestLog ? latestLog.message : "有事の状態共有を記録するとここに表示されます。"}</p>
           </section>
         </div>
@@ -399,21 +410,30 @@ export function DisasterNoteApp() {
               <button
                 type="button"
                 className={lastEmergencyStatus === "safe" ? "is-selected" : ""}
-                onClick={() => recordEmergencyStatus("safe")}
+                onClick={() => {
+                  chooseEmergencyStatus("safe");
+                  recordEmergencyStatus("safe", statusMessages.safe);
+                }}
               >
                 無事
               </button>
               <button
                 type="button"
                 className={`warning-action ${lastEmergencyStatus === "need_help" ? "is-selected" : ""}`}
-                onClick={() => recordEmergencyStatus("need_help")}
+                onClick={() => {
+                  chooseEmergencyStatus("need_help");
+                  recordEmergencyStatus("need_help", statusMessages.need_help);
+                }}
               >
                 要支援
               </button>
               <button
                 type="button"
                 className={`quiet-action ${lastEmergencyStatus === "unavailable" ? "is-selected" : ""}`}
-                onClick={() => recordEmergencyStatus("unavailable")}
+                onClick={() => {
+                  chooseEmergencyStatus("unavailable");
+                  recordEmergencyStatus("unavailable", statusMessages.unavailable);
+                }}
               >
                 返信困難
               </button>
@@ -433,7 +453,7 @@ export function DisasterNoteApp() {
                   key={status}
                   type="button"
                   className={selectedEmergencyStatus === status ? "is-selected" : ""}
-                  onClick={() => setSelectedEmergencyStatus(status)}
+                  onClick={() => chooseEmergencyStatus(status)}
                 >
                   {statusLabels[status]}
                 </button>
@@ -555,14 +575,14 @@ export function DisasterNoteApp() {
               {data.supplyItems.map((item) => {
                 const remaining = daysUntil(item.expiresAt);
                 const expiryText = !item.expiresAt
-                  ? "期限未設定"
+                  ? "消費期限未設定"
                   : remaining === null
-                    ? "期限未設定"
+                    ? "消費期限未設定"
                     : remaining < 0
-                      ? "期限切れ"
+                      ? "消費期限切れ"
                       : remaining === 0
-                        ? "今日まで"
-                        : `あと${remaining}日`;
+                        ? "本日が消費期限"
+                        : `あと${remaining}日で消費期限`;
                 return (
                   <article className={`supply-row ${item.checked ? "is-checked" : ""}`} key={item.id}>
                     <input
