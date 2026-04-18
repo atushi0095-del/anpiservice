@@ -684,8 +684,18 @@ button {
 }
 
 .disaster-home {
-  min-height: 540px;
+  min-height: 420px;
   gap: 16px;
+}
+
+.daily-check-panel {
+  min-height: 300px;
+  gap: 14px;
+}
+
+.daily-check-panel .checkin-button {
+  min-height: 112px;
+  font-size: 1.8rem;
 }
 
 .metric-grid {

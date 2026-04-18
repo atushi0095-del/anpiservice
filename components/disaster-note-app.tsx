@@ -34,9 +34,11 @@ const statusLabels: Record<EmergencyStatus, string> = {
 
 const statusMessages: Record<EmergencyStatus, string> = {
   safe: "無事です。落ち着いたら詳しく連絡します。",
-  need_help: "支援が必要です。状況を確認してください。",
+  need_help: "支援が必要です。安全な範囲で連絡をください。こちらの状況確認をお願いします。",
   unavailable: "返信が難しい状況です。可能になったら連絡します。"
 };
+
+const dailyCheckInMessage = "今日も無事です。いつも通り過ごしています。";
 
 const statusActionCopy: Record<EmergencyStatus, string> = {
   safe: "無事を記録",
@@ -115,6 +117,7 @@ export function DisasterNoteApp() {
   const [selectedEmergencyStatus, setSelectedEmergencyStatus] = useState<EmergencyStatus>("safe");
   const [lastEmergencyStatus, setLastEmergencyStatus] = useState<EmergencyStatus | null>(null);
   const [reviewJustMarked, setReviewJustMarked] = useState(false);
+  const [dailyJustChecked, setDailyJustChecked] = useState(false);
 
   useEffect(() => {
     setData(loadLocalData());
@@ -276,6 +279,31 @@ export function DisasterNoteApp() {
     );
   }
 
+  function recordDailyCheckIn() {
+    const now = new Date().toISOString();
+    const member = data.members[0] || defaultDisasterNoteData.members[0];
+    const log: SafetyStatusLog = {
+      id: createId("status"),
+      memberId: member.id,
+      memberName: member.name,
+      status: "safe",
+      message: dailyCheckInMessage,
+      createdAt: now
+    };
+
+    setDailyJustChecked(true);
+    updateData(
+      {
+        ...data,
+        members: data.members.map((item) =>
+          item.id === member.id ? { ...item, latestStatus: "safe", latestStatusAt: now } : item
+        ),
+        statusLogs: [log, ...data.statusLogs].slice(0, 30)
+      },
+      "今日の安否確認を記録しました。"
+    );
+  }
+
   function copyEmergencyText() {
     const text = `${emergencyMessage}\n現在地: ${
       data.notificationSettings.locationShareEnabled && manualLocation ? manualLocation : "位置情報は共有していません"
@@ -310,9 +338,24 @@ export function DisasterNoteApp() {
 
       <section className="app-screen" aria-label="安否確認ノート">
         <div className={activeScreen === "home" ? "screen-page is-active" : "screen-page"} hidden={activeScreen !== "home"}>
+          <section className={dailyJustChecked ? "status-panel daily-check-panel checkin-complete" : "status-panel daily-check-panel"}>
+            <p className="panel-label">日常の安否確認</p>
+            <h2>{dailyJustChecked ? "今日の安否確認が完了しました" : "今日の無事を家族に残す"}</h2>
+            <button
+              type="button"
+              className={dailyJustChecked ? "checkin-button is-complete" : "checkin-button"}
+              onClick={recordDailyCheckIn}
+            >
+              無事です
+            </button>
+            <p className="checkin-feedback">
+              {dailyJustChecked ? `最終安否確認: ${formatDate(data.members[0]?.latestStatusAt || data.statusLogs[0]?.createdAt || "")}` : "日常の見守り用です。緊急時は下の「有事の安否共有」を使ってください。"}
+            </p>
+          </section>
+
           <section className="status-panel disaster-home">
             <p className="panel-label">今日の安否ステータス</p>
-            <h2>{monthlyTaskDone ? "今月の確認済み" : "今月の確認があります"}</h2>
+            <h2>{monthlyTaskDone ? "今月の家族確認は完了しています" : "今月の家族確認があります"}</h2>
             <div className="metric-grid">
               <div>
                 <span>家族</span>
@@ -337,18 +380,18 @@ export function DisasterNoteApp() {
           </section>
 
           <section className="panel compact-panel">
-            <p className="panel-label">今月の確認タスク</p>
-            <h2>{monthlyTaskDone ? "話し合いを記録済み" : "家族で確認する"}</h2>
+            <p className="panel-label">家族確認メモ</p>
+            <h2>{monthlyTaskDone ? "今月の家族確認が完了しています" : "今月、家族で確認すること"}</h2>
             <ul className="compact-list">
               <li>集合場所と連絡手順を確認</li>
               <li>備蓄の期限と数量を確認</li>
               <li>服薬、アレルギー、注意事項を更新</li>
             </ul>
             <p className={reviewJustMarked ? "review-feedback is-complete" : "review-feedback"}>
-              最終確認: {formatDate(data.lastReviewedAt)}
+              家族で確認した日: {formatDate(data.lastReviewedAt)}
             </p>
             <button type="button" className={reviewJustMarked ? "wide-action is-complete" : "wide-action"} onClick={markReviewed}>
-              {reviewJustMarked ? "確認済みです" : "確認済みにする"}
+              {reviewJustMarked ? "家族確認を完了しました" : "家族確認を完了にする"}
             </button>
           </section>
 
@@ -460,7 +503,7 @@ export function DisasterNoteApp() {
               ))}
             </div>
             <select value={emergencyMessage} onChange={(event) => setEmergencyMessage(event.target.value)}>
-              {data.templateMessages.map((template) => (
+              {Array.from(new Set([...Object.values(statusMessages), ...data.templateMessages])).map((template) => (
                 <option key={template} value={template}>{template}</option>
               ))}
             </select>
