@@ -31,6 +31,14 @@ export function toAuthMessage(error: unknown) {
 export function toAppErrorMessage(error: unknown) {
   const message = error instanceof Error ? error.message : "";
 
+  if (
+    message.includes("Cloud Firestore API has not been used") ||
+    message.includes("firestore.googleapis.com") ||
+    message.includes("PERMISSION_DENIED")
+  ) {
+    return "FirebaseのFirestoreがまだ有効になっていません。Firebaseコンソールの「Firestore Database」を作成し、Vercelを再デプロイしてください。";
+  }
+
   if (message.includes("invite-error:")) {
     return message.replace("invite-error:", "").trim() || "招待の承認に失敗しました。";
   }

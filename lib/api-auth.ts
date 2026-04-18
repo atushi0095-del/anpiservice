@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { toAppErrorMessage } from "@/lib/auth-errors";
 import { getAdminAuth } from "@/lib/firebase-admin";
 
 export async function requireUser(request: NextRequest) {
@@ -13,7 +14,7 @@ export async function requireUser(request: NextRequest) {
 }
 
 export function apiError(error: unknown) {
-  const message = error instanceof Error ? error.message : "処理に失敗しました。";
+  const message = toAppErrorMessage(error);
   const status = message.includes("ログインが必要") ? 401 : 500;
   return NextResponse.json({ error: message }, { status });
 }

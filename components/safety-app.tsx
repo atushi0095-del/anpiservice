@@ -605,7 +605,7 @@ export function SafetyApp() {
             </div>
             {firebaseEnabled ? (
               authUser ? (
-                <button type="button" className={authAction === "signout" ? "is-busy" : ""} onClick={handleSignOut} disabled={authAction === "signout"}>
+                <button type="button" className={`logout-button ${authAction === "signout" ? "is-busy" : ""}`} onClick={handleSignOut} disabled={authAction === "signout"}>
                   {authAction === "signout" ? "処理中..." : "ログアウト"}
                 </button>
               ) : (
