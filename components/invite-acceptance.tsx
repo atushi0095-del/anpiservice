@@ -38,6 +38,8 @@ export function InviteAcceptance({ code }: InviteAcceptanceProps) {
   const [loading, setLoading] = useState(true);
   const [acceptedCode, setAcceptedCode] = useState<string | null>(null);
   const [mutualWatch, setMutualWatch] = useState(true);
+  const [authAction, setAuthAction] = useState<"signin" | "signup" | null>(null);
+  const [accepting, setAccepting] = useState(false);
 
   useEffect(() => {
     fetch(`/api/invites/${encodeURIComponent(normalizedCode)}`)
@@ -74,7 +76,8 @@ export function InviteAcceptance({ code }: InviteAcceptanceProps) {
       return;
     }
 
-    setLoading(true);
+    setAuthAction(mode);
+    setMessage(mode === "signin" ? "ログインしています..." : "登録しています...");
     try {
       const { auth } = getFirebaseClients();
       if (mode === "signin") {
@@ -91,7 +94,7 @@ export function InviteAcceptance({ code }: InviteAcceptanceProps) {
     } catch (error) {
       setMessage(toAuthMessage(error));
     } finally {
-      setLoading(false);
+      setAuthAction(null);
     }
   }
 
@@ -101,7 +104,8 @@ export function InviteAcceptance({ code }: InviteAcceptanceProps) {
       return;
     }
 
-    setLoading(true);
+    setAccepting(true);
+    setMessage("見守りを承認しています...");
     try {
       const token = await authUser.getIdToken();
       const response = await fetch(`/api/invites/${encodeURIComponent(normalizedCode)}`, {
@@ -121,7 +125,7 @@ export function InviteAcceptance({ code }: InviteAcceptanceProps) {
     } catch (error) {
       setMessage(toAppErrorMessage(error));
     } finally {
-      setLoading(false);
+      setAccepting(false);
     }
   }
 
@@ -137,7 +141,7 @@ export function InviteAcceptance({ code }: InviteAcceptanceProps) {
         </div>
       </header>
 
-      <p className="app-message">{loading ? "処理中です。" : message}</p>
+      <p className={`app-message ${loading || authAction || accepting ? "is-busy" : ""}`}>{loading ? "読み込み中です..." : message}</p>
 
       <section className="panel invite-card">
         <p className="panel-label">招待内容</p>
@@ -161,11 +165,11 @@ export function InviteAcceptance({ code }: InviteAcceptanceProps) {
           <div className="auth-form invite-auth">
             <input value={email} onChange={(event) => setEmail(event.target.value)} placeholder="メールアドレス" type="email" />
             <input value={password} onChange={(event) => setPassword(event.target.value)} placeholder="パスワード 8文字以上" type="password" />
-            <button type="button" onClick={() => handleAuth("signin")} disabled={loading}>
-              ログイン
+            <button type="button" className={authAction === "signin" ? "is-busy" : ""} onClick={() => handleAuth("signin")} disabled={Boolean(authAction)}>
+              {authAction === "signin" ? "ログイン中..." : "ログイン"}
             </button>
-            <button type="button" onClick={() => handleAuth("signup")} disabled={loading}>
-              新規登録
+            <button type="button" className={authAction === "signup" ? "is-busy" : ""} onClick={() => handleAuth("signup")} disabled={Boolean(authAction)}>
+              {authAction === "signup" ? "登録中..." : "新規登録"}
             </button>
           </div>
           <p className="small-copy">パスワードは8文字以上で、英字と数字を含めてください。一度ログインすると次回から自動ログインされます。</p>
@@ -178,8 +182,13 @@ export function InviteAcceptance({ code }: InviteAcceptanceProps) {
             <input type="checkbox" checked={mutualWatch} onChange={(event) => setMutualWatch(event.target.checked)} />
             <span>自分も相手に見守ってもらう</span>
           </label>
-          <button type="button" className="wide-action" onClick={handleAccept} disabled={loading || Boolean(acceptedCode)}>
-            {acceptedCode ? "承認済み" : "見守りを承認"}
+          <button
+            type="button"
+            className={`wide-action ${accepting ? "is-busy" : ""}`}
+            onClick={handleAccept}
+            disabled={accepting || Boolean(acceptedCode)}
+          >
+            {accepting ? "承認中..." : acceptedCode ? "承認済み" : "見守りを承認"}
           </button>
           {acceptedCode ? <PushRegistration lineLinkCode={acceptedCode} enabled={false} /> : null}
         </section>

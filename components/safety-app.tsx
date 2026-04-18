@@ -119,6 +119,12 @@ export function SafetyApp() {
   const [checkInFeedback, setCheckInFeedback] = useState(false);
   const [activeScreen, setActiveScreen] = useState<AppScreen>("checkin");
   const [deferredInstallPrompt, setDeferredInstallPrompt] = useState<BeforeInstallPromptEvent | null>(null);
+  const [authAction, setAuthAction] = useState<"signin" | "signup" | "signout" | null>(null);
+  const [familyAdding, setFamilyAdding] = useState(false);
+  const [frequencySaving, setFrequencySaving] = useState<CheckInFrequencyDays | null>(null);
+  const [deactivatingId, setDeactivatingId] = useState<string | null>(null);
+  const [refreshingFamily, setRefreshingFamily] = useState(false);
+  const [installingApp, setInstallingApp] = useState(false);
   const [message, setMessage] = useState(
     firebaseEnabled ? "メールでログインするとデータをFirebaseへ保存します。" : "Firebase未設定のためデモモードで動作しています。"
   );
@@ -203,13 +209,7 @@ export function SafetyApp() {
         setLatestCheckIn(data.latestCheckIn);
         setWatchLinks(data.watchLinks);
         setLogs(data.logs);
-        const targets = await loadFamilyDashboard(user.uid);
-        setFamilyTargets(targets);
-        setMessage(
-          targets.length
-            ? "Firebaseに接続しました。自分の確認と家族の見守りを利用できます。"
-            : "Firebaseに接続しました。チェックインと設定を保存します。"
-        );
+        setMessage("Firebaseに接続しました。チェックインと設定を保存します。");
       } catch (error) {
         setMessage(toAppErrorMessage(error));
       } finally {
@@ -218,13 +218,43 @@ export function SafetyApp() {
     });
   }, [firebaseEnabled]);
 
+  useEffect(() => {
+    if (!firebaseEnabled || !authUser || activeScreen !== "family") {
+      return;
+    }
+
+    let cancelled = false;
+    setRefreshingFamily(true);
+    loadFamilyDashboard(authUser.uid)
+      .then((targets) => {
+        if (!cancelled) {
+          setFamilyTargets(targets);
+        }
+      })
+      .catch((error) => {
+        if (!cancelled) {
+          setMessage(toAppErrorMessage(error));
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setRefreshingFamily(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeScreen, authUser, firebaseEnabled]);
+
   async function handleAuth(mode: "signin" | "signup") {
     if (!firebaseEnabled) {
       setMessage("Firebase環境変数を設定するとメール認証を使えます。");
       return;
     }
 
-    setLoading(true);
+    setAuthAction(mode);
+    setMessage(mode === "signin" ? "ログインしています..." : "登録しています...");
     try {
       const { auth } = getFirebaseClients();
       if (mode === "signin") {
@@ -240,7 +270,7 @@ export function SafetyApp() {
     } catch (error) {
       setMessage(toAuthMessage(error));
     } finally {
-      setLoading(false);
+      setAuthAction(null);
     }
   }
 
@@ -249,14 +279,22 @@ export function SafetyApp() {
       return;
     }
 
-    const { auth } = getFirebaseClients();
+    setAuthAction("signout");
+    setMessage("ログアウトしています...");
+    try {
+      const { auth } = getFirebaseClients();
       await signOut(auth);
-    setProfile(demoMember);
-    setSettings(demoSettings);
-    setLatestCheckIn(demoCheckIn);
-    setWatchLinks(demoWatchLinks);
-    setFamilyTargets([]);
-    setLogs(demoNotificationLogs);
+      setProfile(demoMember);
+      setSettings(demoSettings);
+      setLatestCheckIn(demoCheckIn);
+      setWatchLinks(demoWatchLinks);
+      setFamilyTargets([]);
+      setLogs(demoNotificationLogs);
+    } catch (error) {
+      setMessage(toAppErrorMessage(error));
+    } finally {
+      setAuthAction(null);
+    }
   }
 
   async function handleCheckIn() {
@@ -298,7 +336,16 @@ export function SafetyApp() {
     setSettings(nextSettings);
     setLatestCheckIn(createCheckIn(profile.id, nextSettings, new Date(latestCheckIn.checkedAt)));
     if (firebaseEnabled && authUser) {
-      await saveSettings(nextSettings);
+      setFrequencySaving(value);
+      setMessage("確認リズムを保存しています...");
+      try {
+        await saveSettings(nextSettings);
+        setMessage("確認リズムを保存しました。");
+      } catch (error) {
+        setMessage(toAppErrorMessage(error));
+      } finally {
+        setFrequencySaving(null);
+      }
     }
   }
 
@@ -313,10 +360,13 @@ export function SafetyApp() {
       return;
     }
 
-    const next: WatchLink =
-      firebaseEnabled && authUser
-        ? await addFamilyContact(authUser.uid, familyName.trim(), familyEmail.trim())
-        : {
+    setFamilyAdding(true);
+    setMessage("家族連絡先を追加しています...");
+    try {
+      const next: WatchLink =
+        firebaseEnabled && authUser
+          ? await addFamilyContact(authUser.uid, familyName.trim(), familyEmail.trim())
+          : {
             id: `watch-${Date.now()}`,
             memberId: profile.id,
             familyId: `family-${Date.now()}`,
@@ -328,31 +378,45 @@ export function SafetyApp() {
             preferredChannel: "push",
             active: true,
             createdAt: new Date().toISOString()
-          };
+            };
 
-    setWatchLinks((current) => [next, ...current]);
-    setFamilyName("");
-    setFamilyEmail("");
-    setLogs((current) => [
-      {
-        id: `log-${Date.now()}`,
-        memberId: profile.id,
-        watchLinkId: next.id,
-        recipientName: next.familyName,
-        channel: "email",
-        kind: "family_alert",
-        status: "queued",
-        message: `${next.familyEmail} を見守り連絡先に追加しました。`,
-        createdAt: new Date().toISOString()
-      },
-      ...current
-    ]);
-    setMessage("家族連絡先を追加しました。招待リンクを送ると、家族が承認して登録できます。");
+      setWatchLinks((current) => [next, ...current]);
+      setFamilyName("");
+      setFamilyEmail("");
+      setLogs((current) => [
+        {
+          id: `log-${Date.now()}`,
+          memberId: profile.id,
+          watchLinkId: next.id,
+          recipientName: next.familyName,
+          channel: "email",
+          kind: "family_alert",
+          status: "queued",
+          message: `${next.familyEmail} を見守り連絡先に追加しました。`,
+          createdAt: new Date().toISOString()
+        },
+        ...current
+      ]);
+      setMessage("家族連絡先を追加しました。招待リンクを送れます。");
+    } catch (error) {
+      setMessage(toAppErrorMessage(error));
+    } finally {
+      setFamilyAdding(false);
+    }
   }
 
   async function handleDeactivate(link: WatchLink) {
-    const next = firebaseEnabled && authUser ? await deactivateFamilyContact(link) : { ...link, active: false };
-    setWatchLinks((current) => current.map((item) => (item.id === link.id ? next : item)));
+    setDeactivatingId(link.id);
+    setMessage("見守り解除を保存しています...");
+    try {
+      const next = firebaseEnabled && authUser ? await deactivateFamilyContact(link) : { ...link, active: false };
+      setWatchLinks((current) => current.map((item) => (item.id === link.id ? next : item)));
+      setMessage("見守りを解除しました。");
+    } catch (error) {
+      setMessage(toAppErrorMessage(error));
+    } finally {
+      setDeactivatingId(null);
+    }
   }
 
   async function handleShareInvite(link: WatchLink) {
@@ -375,15 +439,22 @@ export function SafetyApp() {
   }
 
   async function handleInstallApp() {
-    if (!deferredInstallPrompt) {
-      setMessage("ブラウザの共有メニューから「ホーム画面に追加」を選ぶと、アプリのように開けます。");
-      return;
-    }
+    setInstallingApp(true);
+    try {
+      if (!deferredInstallPrompt) {
+        setMessage("ブラウザの共有メニューから「ホーム画面に追加」を選ぶと、アプリのように開けます。");
+        return;
+      }
 
-    await deferredInstallPrompt.prompt();
-    const choice = await deferredInstallPrompt.userChoice;
-    setDeferredInstallPrompt(null);
-    setMessage(choice.outcome === "accepted" ? "ホーム画面に追加しました。" : "ホーム画面追加をキャンセルしました。");
+      await deferredInstallPrompt.prompt();
+      const choice = await deferredInstallPrompt.userChoice;
+      setDeferredInstallPrompt(null);
+      setMessage(choice.outcome === "accepted" ? "ホーム画面に追加しました。" : "ホーム画面追加をキャンセルしました。");
+    } catch (error) {
+      setMessage(toAppErrorMessage(error));
+    } finally {
+      setInstallingApp(false);
+    }
   }
 
   return (
@@ -401,7 +472,9 @@ export function SafetyApp() {
         </button>
       </header>
 
-      <p className="app-message">{loading ? "処理中です。" : message}</p>
+      <p className={`app-message ${loading || authAction || familyAdding || frequencySaving || deactivatingId || installingApp ? "is-busy" : ""}`}>
+        {loading ? "読み込み中です..." : message}
+      </p>
 
       <section className="app-screen" aria-label="安否確認アプリ">
         <div className={activeScreen === "checkin" ? "screen-page is-active" : "screen-page"} hidden={activeScreen !== "checkin"}>
@@ -441,7 +514,8 @@ export function SafetyApp() {
               <p className="panel-label">見守り対象</p>
               <h2>見守り中の方</h2>
               <div className="family-list">
-                {familyTargets.length ? (
+              {refreshingFamily ? <p className="small-copy">見守り対象を更新しています...</p> : null}
+              {familyTargets.length ? (
                   familyTargets.map((target) => {
                     const targetStatus = target.latestCheckIn
                       ? getSafetyStatus(target.latestCheckIn.nextDueAt, target.settings?.graceHours || 6)
@@ -476,8 +550,8 @@ export function SafetyApp() {
             </div>
             {firebaseEnabled ? (
               authUser ? (
-                <button type="button" onClick={handleSignOut}>
-                  ログアウト
+                <button type="button" className={authAction === "signout" ? "is-busy" : ""} onClick={handleSignOut} disabled={authAction === "signout"}>
+                  {authAction === "signout" ? "処理中..." : "ログアウト"}
                 </button>
               ) : (
                 <div className="auth-form">
@@ -488,11 +562,11 @@ export function SafetyApp() {
                     placeholder="パスワード 8文字以上"
                     type="password"
                   />
-                  <button type="button" onClick={() => handleAuth("signin")} disabled={loading}>
-                    ログイン
+                  <button type="button" className={authAction === "signin" ? "is-busy" : ""} onClick={() => handleAuth("signin")} disabled={Boolean(authAction)}>
+                    {authAction === "signin" ? "ログイン中..." : "ログイン"}
                   </button>
-                  <button type="button" onClick={() => handleAuth("signup")} disabled={loading}>
-                    新規登録
+                  <button type="button" className={authAction === "signup" ? "is-busy" : ""} onClick={() => handleAuth("signup")} disabled={Boolean(authAction)}>
+                    {authAction === "signup" ? "登録中..." : "新規登録"}
                   </button>
                   <p className="small-copy">パスワードは8文字以上で、英字と数字を含めてください。</p>
                 </div>
@@ -509,8 +583,8 @@ export function SafetyApp() {
             <div className="family-add-form">
               <input value={familyName} onChange={(event) => setFamilyName(event.target.value)} placeholder="家族の名前" />
               <input value={familyEmail} onChange={(event) => setFamilyEmail(event.target.value)} placeholder="家族のメール" type="email" />
-              <button type="button" onClick={handleAddFamily}>
-                追加
+              <button type="button" className={familyAdding ? "is-busy" : ""} onClick={handleAddFamily} disabled={familyAdding}>
+                {familyAdding ? "追加中..." : "追加"}
               </button>
             </div>
             <div className="family-list">
@@ -539,8 +613,13 @@ export function SafetyApp() {
                     <a className="action-button" href={inviteMailHref(link, createInviteUrl(link))}>
                       招待メール
                     </a>
-                    <button type="button" onClick={() => handleDeactivate(link)} disabled={!link.active}>
-                      {link.active ? "見守り解除" : "解除済み"}
+                    <button
+                      type="button"
+                      className={deactivatingId === link.id ? "is-busy" : ""}
+                      onClick={() => handleDeactivate(link)}
+                      disabled={!link.active || deactivatingId === link.id}
+                    >
+                      {deactivatingId === link.id ? "処理中..." : link.active ? "見守り解除" : "解除済み"}
                     </button>
                   </div>
                 </article>
@@ -562,8 +641,11 @@ export function SafetyApp() {
                     name="frequency"
                     checked={settings.frequencyDays === option.value}
                     onChange={() => handleFrequencyChange(option.value)}
+                    disabled={Boolean(frequencySaving)}
                   />
-                  <span>{option.label}</span>
+                  <span className={frequencySaving === option.value ? "is-saving" : ""}>
+                    {frequencySaving === option.value ? "保存中..." : option.label}
+                  </span>
                 </label>
               ))}
             </fieldset>
@@ -588,8 +670,8 @@ export function SafetyApp() {
                 label="本人通知を登録"
               />
             ) : null}
-            <button type="button" className="wide-action" onClick={handleInstallApp} disabled={isStandalone}>
-              {isStandalone ? "ホーム画面から起動中" : deferredInstallPrompt ? "ホーム画面に追加" : "追加方法を表示"}
+            <button type="button" className={`wide-action ${installingApp ? "is-busy" : ""}`} onClick={handleInstallApp} disabled={isStandalone || installingApp}>
+              {installingApp ? "処理中..." : isStandalone ? "ホーム画面から起動中" : deferredInstallPrompt ? "ホーム画面に追加" : "追加方法を表示"}
             </button>
             <p className="small-copy">
               Androidはボタンから追加できます。iPhoneはSafariの共有メニューから「ホーム画面に追加」を選びます。

@@ -91,6 +91,12 @@ main {
   line-height: 1.55;
 }
 
+.app-message.is-busy {
+  border-color: #9fd2ff;
+  background: #edf7ff;
+  color: #15558c;
+}
+
 .app-screen {
   min-height: calc(100vh - 210px);
 }
@@ -177,6 +183,42 @@ main {
 .bottom-nav button.is-active {
   background: var(--teal);
   color: white;
+}
+
+button,
+.action-button,
+.primary-link,
+.secondary-link {
+  transition:
+    background 160ms ease,
+    color 160ms ease,
+    border-color 160ms ease,
+    box-shadow 160ms ease,
+    transform 120ms ease,
+    opacity 160ms ease;
+}
+
+button:active,
+.action-button:active,
+.primary-link:active,
+.secondary-link:active {
+  transform: scale(0.98);
+  box-shadow: 0 4px 12px rgba(23, 33, 31, 0.16);
+}
+
+button.is-busy,
+button:disabled.is-busy,
+.segmented span.is-saving {
+  cursor: wait;
+  border-color: #1f8cff;
+  background: #1f8cff;
+  color: white;
+  box-shadow: 0 0 0 5px rgba(97, 171, 255, 0.22);
+}
+
+button:disabled {
+  cursor: wait;
+  opacity: 0.72;
 }
 
 .top-band {
@@ -497,6 +539,11 @@ button {
   border-color: var(--teal);
   background: var(--mint);
   color: var(--teal);
+}
+
+.segmented input:disabled + span {
+  cursor: wait;
+  opacity: 0.75;
 }
 
 .setting-line {

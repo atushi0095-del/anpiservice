@@ -90,7 +90,7 @@ export function PushRegistration({ lineLinkCode, userId, enabled, label = "ア�
   return (
     <div className="push-registration">
       <p>{status}</p>
-      <button type="button" onClick={handleRegisterPush} disabled={registering || enabled}>
+      <button type="button" className={registering ? "is-busy" : ""} onClick={handleRegisterPush} disabled={registering || enabled}>
         {registering ? "登録中..." : enabled ? "登録済み" : label}
       </button>
     </div>
