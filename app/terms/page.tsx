@@ -3,11 +3,11 @@ export default function TermsPage() {
     <main className="legal-page">
       <article className="legal-content">
         <a href="/" className="back-link">
-          家族防災ノートへ戻る
+          安否確認ノートへ戻る
         </a>
         <h1>利用規約</h1>
         <p>
-          家族防災ノートは、家族の防災情報を整理し、いざという時の状況共有を助けるサービスです。
+          安否確認ノートは、日常の見守りと家族の防災情報を整理し、いざという時の状況共有を助けるサービスです。
           災害の予測、救助、医療判断、生命または身体の安全を保証するものではありません。
         </p>
         <h2>利用目的</h2>

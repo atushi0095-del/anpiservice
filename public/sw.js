@@ -1,4 +1,4 @@
-const CACHE_NAME = "kazoku-bosai-note-v1";
+const CACHE_NAME = "anpi-note-v2";
 const APP_SHELL = ["/", "/terms", "/privacy", "/disclaimer", "/icon.svg"];
 
 self.addEventListener("install", (event) => {

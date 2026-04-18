@@ -714,12 +714,69 @@ button {
   font-size: 1.25rem;
 }
 
+.emergency-actions button.is-selected {
+  border-color: #8fc8ff;
+  background: #1f8cff;
+  color: white;
+  box-shadow: 0 0 0 7px rgba(97, 171, 255, 0.24), 0 12px 26px rgba(23, 33, 31, 0.2);
+}
+
 .emergency-actions .warning-action {
   color: #982f38;
 }
 
 .emergency-actions .quiet-action {
   color: #39423f;
+}
+
+.emergency-actions .warning-action.is-selected,
+.emergency-actions .quiet-action.is-selected {
+  color: white;
+}
+
+.emergency-confirmation {
+  margin: 0;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.16);
+  color: white;
+  padding: 10px 12px;
+  font-weight: 700;
+  line-height: 1.55;
+}
+
+.status-choice {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.status-choice button,
+.secondary-action {
+  border-color: var(--line);
+  background: white;
+  color: var(--ink);
+  padding: 0 12px;
+}
+
+.status-choice button.is-selected {
+  border-color: var(--teal);
+  background: var(--mint);
+  color: var(--teal);
+  box-shadow: inset 0 0 0 1px var(--teal);
+}
+
+.message-actions {
+  display: grid;
+  gap: 10px;
+}
+
+.message-actions .wide-action {
+  margin-top: 12px;
+}
+
+.secondary-action {
+  width: 100%;
 }
 
 .note-item,
@@ -745,6 +802,75 @@ button {
 .supply-item p {
   margin: 0;
   color: var(--muted);
+}
+
+.add-details {
+  margin-bottom: 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #f8fbfa;
+}
+
+.add-details summary {
+  min-height: 48px;
+  cursor: pointer;
+  padding: 13px 14px;
+  color: var(--teal);
+  font-weight: 700;
+}
+
+.add-details .family-add-form {
+  margin: 0;
+  border-top: 1px solid var(--line);
+  padding: 12px;
+}
+
+.compact-supply-list {
+  gap: 8px;
+}
+
+.supply-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  min-height: 64px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fbfdfc;
+  padding: 10px;
+}
+
+.supply-row input {
+  width: 22px;
+  height: 22px;
+}
+
+.supply-main {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.supply-main strong,
+.supply-main span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.supply-main span {
+  color: var(--muted);
+  font-size: 0.88rem;
+}
+
+.supply-row.is-checked {
+  background: #edf4f1;
+  opacity: 0.82;
+}
+
+.supply-row.is-checked .supply-main strong {
+  text-decoration: line-through;
 }
 
 .legal-links {

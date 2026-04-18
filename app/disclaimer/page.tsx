@@ -3,11 +3,11 @@ export default function DisclaimerPage() {
     <main className="legal-page">
       <article className="legal-content">
         <a href="/" className="back-link">
-          家族防災ノートへ戻る
+          安否確認ノートへ戻る
         </a>
         <h1>免責事項</h1>
         <p>
-          家族防災ノートは、家族の備えを整理し、いざという時の情報共有を助けるためのツールです。
+          安否確認ノートは、日常の見守りと家族の備えを整理し、いざという時の情報共有を助けるためのツールです。
           命を守る保証、救助の保証、医療判断、災害予測、公的機関への通報代行を提供するものではありません。
         </p>
         <h2>通信と通知</h2>

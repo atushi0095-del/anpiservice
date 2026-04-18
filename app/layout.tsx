@@ -2,11 +2,11 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "家族防災ノート",
-  description: "平時の備えを整理し、いざという時の家族共有を簡単にするPWA。",
+  title: "安否確認ノート",
+  description: "日常の見守りと家族の備えを整理し、いざという時の安否共有を簡単にするPWA。",
   appleWebApp: {
     capable: true,
-    title: "家族防災ノート",
+    title: "安否確認ノート",
     statusBarStyle: "default"
   }
 };

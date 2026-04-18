@@ -38,6 +38,12 @@ const statusMessages: Record<EmergencyStatus, string> = {
   unavailable: "返信が難しい状況です。可能になったら連絡します。"
 };
 
+const statusActionCopy: Record<EmergencyStatus, string> = {
+  safe: "無事を記録",
+  need_help: "要支援を記録",
+  unavailable: "返信困難を記録"
+};
+
 const supplyLabels: Record<SupplyCategory, string> = {
   water: "水",
   food: "食料",
@@ -106,6 +112,8 @@ export function DisasterNoteApp() {
   const [newPlaceAddress, setNewPlaceAddress] = useState("");
   const [emergencyMessage, setEmergencyMessage] = useState(defaultDisasterNoteData.templateMessages[0]);
   const [manualLocation, setManualLocation] = useState("");
+  const [selectedEmergencyStatus, setSelectedEmergencyStatus] = useState<EmergencyStatus>("safe");
+  const [lastEmergencyStatus, setLastEmergencyStatus] = useState<EmergencyStatus | null>(null);
 
   useEffect(() => {
     setData(loadLocalData());
@@ -239,6 +247,8 @@ export function DisasterNoteApp() {
   function recordEmergencyStatus(status: EmergencyStatus) {
     const now = new Date().toISOString();
     const member = data.members[0] || defaultDisasterNoteData.members[0];
+    setSelectedEmergencyStatus(status);
+    setLastEmergencyStatus(status);
     const log: SafetyStatusLog = {
       id: createId("status"),
       memberId: member.id,
@@ -258,7 +268,6 @@ export function DisasterNoteApp() {
       },
       `${statusLabels[status]}を記録しました。家族へ送る文面として使えます。`
     );
-    setActiveScreen("home");
   }
 
   function copyEmergencyText() {
@@ -279,10 +288,10 @@ export function DisasterNoteApp() {
     <main className="phone-app disaster-app">
       <header className="app-header">
         <div className="brand-row">
-          <img src="/icon.svg" alt="家族防災ノート" className="app-icon" />
+          <img src="/icon.svg" alt="安否確認ノート" className="app-icon" />
           <div>
-            <p className="eyebrow">家族の備えを整理する</p>
-            <h1>家族防災ノート</h1>
+            <p className="eyebrow">日常の見守りと家族の備え</p>
+            <h1>安否確認ノート</h1>
           </div>
         </div>
         <button type="button" className="install-button" onClick={() => setMessage("ブラウザの共有メニューからホーム画面に追加できます。")}>
@@ -292,11 +301,11 @@ export function DisasterNoteApp() {
 
       <p className="app-message">{message}</p>
 
-      <section className="app-screen" aria-label="家族防災ノート">
+      <section className="app-screen" aria-label="安否確認ノート">
         <div className={activeScreen === "home" ? "screen-page is-active" : "screen-page"} hidden={activeScreen !== "home"}>
           <section className="status-panel disaster-home">
-            <p className="panel-label">今日の防災ステータス</p>
-            <h2>{monthlyTaskDone ? "今月の点検済み" : "今月の点検があります"}</h2>
+            <p className="panel-label">今日の安否ステータス</p>
+            <h2>{monthlyTaskDone ? "今月の確認済み" : "今月の確認があります"}</h2>
             <div className="metric-grid">
               <div>
                 <span>家族</span>
@@ -316,12 +325,12 @@ export function DisasterNoteApp() {
               </div>
             </div>
             <button type="button" className="checkin-button emergency-launch" onClick={() => setActiveScreen("emergency")}>
-              緊急時モード
+              有事の安否共有
             </button>
           </section>
 
           <section className="panel compact-panel">
-            <p className="panel-label">今月の点検タスク</p>
+            <p className="panel-label">今月の確認タスク</p>
             <h2>{monthlyTaskDone ? "話し合いを記録済み" : "家族で確認する"}</h2>
             <ul className="compact-list">
               <li>集合場所と連絡手順を確認</li>
@@ -329,7 +338,7 @@ export function DisasterNoteApp() {
               <li>服薬、アレルギー、注意事項を更新</li>
             </ul>
             <button type="button" className="wide-action" onClick={markReviewed}>
-              点検済みにする
+              確認済みにする
             </button>
           </section>
 
@@ -387,16 +396,49 @@ export function DisasterNoteApp() {
             <p className="panel-label">緊急モード</p>
             <h2>今の状況を記録</h2>
             <div className="emergency-actions">
-              <button type="button" onClick={() => recordEmergencyStatus("safe")}>無事</button>
-              <button type="button" className="warning-action" onClick={() => recordEmergencyStatus("need_help")}>要支援</button>
-              <button type="button" className="quiet-action" onClick={() => recordEmergencyStatus("unavailable")}>返信困難</button>
+              <button
+                type="button"
+                className={lastEmergencyStatus === "safe" ? "is-selected" : ""}
+                onClick={() => recordEmergencyStatus("safe")}
+              >
+                無事
+              </button>
+              <button
+                type="button"
+                className={`warning-action ${lastEmergencyStatus === "need_help" ? "is-selected" : ""}`}
+                onClick={() => recordEmergencyStatus("need_help")}
+              >
+                要支援
+              </button>
+              <button
+                type="button"
+                className={`quiet-action ${lastEmergencyStatus === "unavailable" ? "is-selected" : ""}`}
+                onClick={() => recordEmergencyStatus("unavailable")}
+              >
+                返信困難
+              </button>
             </div>
+            <p className="emergency-confirmation">
+              {lastEmergencyStatus ? `${statusLabels[lastEmergencyStatus]}を記録済みです。必要なら下の文面を家族へ送れます。` : "ボタンを押すと、この画面のまま状態を記録します。"}
+            </p>
             <p className="small-copy">救助や安全を保証するものではありません。必要な場合は公的な窓口や身近な人へ連絡してください。</p>
           </section>
 
           <section className="panel">
             <p className="panel-label">定型文</p>
             <h2>送る文面</h2>
+            <div className="status-choice">
+              {(Object.keys(statusLabels) as EmergencyStatus[]).map((status) => (
+                <button
+                  key={status}
+                  type="button"
+                  className={selectedEmergencyStatus === status ? "is-selected" : ""}
+                  onClick={() => setSelectedEmergencyStatus(status)}
+                >
+                  {statusLabels[status]}
+                </button>
+              ))}
+            </div>
             <select value={emergencyMessage} onChange={(event) => setEmergencyMessage(event.target.value)}>
               {data.templateMessages.map((template) => (
                 <option key={template} value={template}>{template}</option>
@@ -419,7 +461,12 @@ export function DisasterNoteApp() {
             {data.notificationSettings.locationShareEnabled ? (
               <input value={manualLocation} onChange={(event) => setManualLocation(event.target.value)} placeholder="例: 自宅、駅前、避難所名" />
             ) : null}
-            <button type="button" className="wide-action" onClick={copyEmergencyText}>共有文をコピー</button>
+            <div className="message-actions">
+              <button type="button" className="wide-action" onClick={() => recordEmergencyStatus(selectedEmergencyStatus)}>
+                {statusActionCopy[selectedEmergencyStatus]}
+              </button>
+              <button type="button" className="secondary-action" onClick={copyEmergencyText}>共有文をコピー</button>
+            </div>
           </section>
 
           <section className="panel compact-panel">
@@ -490,29 +537,46 @@ export function DisasterNoteApp() {
           <section className="panel">
             <p className="panel-label">備蓄チェック</p>
             <h2>持ち出し品と備蓄</h2>
-            <div className="family-add-form">
-              <input value={newSupplyName} onChange={(event) => setNewSupplyName(event.target.value)} placeholder="品名" />
-              <select value={newSupplyCategory} onChange={(event) => setNewSupplyCategory(event.target.value as SupplyCategory)}>
-                {Object.entries(supplyLabels).map(([value, label]) => (
-                  <option key={value} value={value}>{label}</option>
-                ))}
-              </select>
-              <input value={newSupplyQuantity} onChange={(event) => setNewSupplyQuantity(event.target.value)} placeholder="数量" />
-              <input value={newSupplyExpiresAt} onChange={(event) => setNewSupplyExpiresAt(event.target.value)} type="date" />
-              <button type="button" onClick={addSupply}>追加</button>
-            </div>
-            <div className="supply-list">
+            <details className="add-details">
+              <summary>備蓄品を追加</summary>
+              <div className="family-add-form">
+                <input value={newSupplyName} onChange={(event) => setNewSupplyName(event.target.value)} placeholder="品名" />
+                <select value={newSupplyCategory} onChange={(event) => setNewSupplyCategory(event.target.value as SupplyCategory)}>
+                  {Object.entries(supplyLabels).map(([value, label]) => (
+                    <option key={value} value={value}>{label}</option>
+                  ))}
+                </select>
+                <input value={newSupplyQuantity} onChange={(event) => setNewSupplyQuantity(event.target.value)} placeholder="数量" />
+                <input value={newSupplyExpiresAt} onChange={(event) => setNewSupplyExpiresAt(event.target.value)} type="date" />
+                <button type="button" onClick={addSupply}>追加</button>
+              </div>
+            </details>
+            <div className="supply-list compact-supply-list">
               {data.supplyItems.map((item) => {
                 const remaining = daysUntil(item.expiresAt);
+                const expiryText = !item.expiresAt
+                  ? "期限未設定"
+                  : remaining === null
+                    ? "期限未設定"
+                    : remaining < 0
+                      ? "期限切れ"
+                      : remaining === 0
+                        ? "今日まで"
+                        : `あと${remaining}日`;
                 return (
-                  <article className="supply-item" key={item.id}>
-                    <label className="check-row">
-                      <input type="checkbox" checked={item.checked} onChange={(event) => updateSupply(item, { checked: event.target.checked })} />
-                      <span>{item.name}</span>
-                    </label>
-                    <p>{supplyLabels[item.category]} / {item.quantity}</p>
+                  <article className={`supply-row ${item.checked ? "is-checked" : ""}`} key={item.id}>
+                    <input
+                      type="checkbox"
+                      checked={item.checked}
+                      aria-label={`${item.name}を確認済みにする`}
+                      onChange={(event) => updateSupply(item, { checked: event.target.checked })}
+                    />
+                    <div className="supply-main">
+                      <strong>{item.name}</strong>
+                      <span>{supplyLabels[item.category]} / {item.quantity}</span>
+                    </div>
                     <span className={remaining !== null && remaining <= 30 ? "pill warning" : "pill"}>
-                      {item.expiresAt ? `期限: ${item.expiresAt}` : "期限未設定"}
+                      {expiryText}
                     </span>
                   </article>
                 );

@@ -3,11 +3,11 @@ export default function PrivacyPage() {
     <main className="legal-page">
       <article className="legal-content">
         <a href="/" className="back-link">
-          家族防災ノートへ戻る
+          安否確認ノートへ戻る
         </a>
         <h1>プライバシーポリシー</h1>
         <p>
-          家族防災ノートは、家族の備えを整理し、必要な時に情報を確認しやすくするために、利用者が入力した情報を取り扱います。
+          安否確認ノートは、日常の見守りと家族の備えを整理し、必要な時に情報を確認しやすくするために、利用者が入力した情報を取り扱います。
           Phase 1では端末保存を基本とし、クラウド同期は任意機能として後続フェーズで提供します。
         </p>
         <h2>取得する情報</h2>
