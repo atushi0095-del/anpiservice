@@ -45,9 +45,9 @@ const storageKey = "kazoku-bosai-note-v1";
 
 const screens: Array<{ id: AppScreen; label: string }> = [
   { id: "home", label: "確認" },
-  { id: "family", label: "つながる" },
+  { id: "family", label: "家族共有" },
   { id: "emergency", label: "災害時" },
-  { id: "note", label: "避難連絡" },
+  { id: "note", label: "防災メモ" },
   { id: "supplies", label: "防災備蓄" },
   { id: "settings", label: "設定" }
 ];
@@ -1307,7 +1307,7 @@ export function DisasterNoteApp() {
               無事です
             </button>
             <button type="button" className="emergency-launch" onClick={() => setActiveScreen("emergency")}>
-              災害時モード
+              災害時に送る
             </button>
             <p className="checkin-feedback">
               {dailyJustChecked ? `最終安否確認: ${formatDate(data.members[0]?.latestStatusAt || data.statusLogs[0]?.createdAt || "")}` : "日常でも、急いで無事だけ伝えたい時でも使えます。下の人数表示にも反映されます。"}
@@ -1417,8 +1417,8 @@ export function DisasterNoteApp() {
             </p>
             <div className="mutual-watch-card">
               <div>
-                <p className="panel-label">つながる</p>
-                <h3>家族・グループとつながる</h3>
+                <p className="panel-label">家族共有</p>
+                <h3>家族と共有する</h3>
                 <p>相手に招待リンクを送り、承認されるとお互いの安否確認を見られます。相互に見守る場合は承認画面で「自分も相手に見守ってもらう」を選びます。</p>
               </div>
               <button type="button" onClick={() => cloudUser ? refreshWatchConnections(cloudUser) : setActiveScreen("settings")}>
