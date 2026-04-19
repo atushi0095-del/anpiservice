@@ -691,6 +691,10 @@ button {
   box-shadow: 0 0 0 5px rgba(44, 143, 91, 0.16);
 }
 
+.family-share-action {
+  margin: 10px 0 16px;
+}
+
 .disaster-home {
   min-height: 420px;
   gap: 16px;
@@ -784,6 +788,73 @@ button {
   line-height: 1.55;
 }
 
+.message-mode .check-row,
+.location-share-card {
+  margin: 0;
+  border-color: rgba(255, 255, 255, 0.45);
+  background: rgba(255, 255, 255, 0.13);
+  color: white;
+}
+
+.custom-message-box,
+.auto-message-preview {
+  display: grid;
+  gap: 10px;
+}
+
+.auto-message-preview {
+  border: 1px solid rgba(255, 255, 255, 0.45);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.13);
+  padding: 12px;
+}
+
+.auto-message-preview span {
+  color: rgba(255, 255, 255, 0.82);
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.auto-message-preview strong {
+  color: white;
+  line-height: 1.65;
+}
+
+.location-share-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  border: 1px solid;
+  border-radius: 8px;
+  padding: 12px;
+}
+
+.location-share-card h3,
+.location-share-card p {
+  margin: 0;
+}
+
+.location-share-card .panel-label {
+  margin-bottom: 4px;
+}
+
+.location-share-card p:not(.panel-label) {
+  color: rgba(255, 255, 255, 0.82);
+  font-size: 0.9rem;
+  line-height: 1.55;
+}
+
+.location-share-card .secondary-action {
+  min-width: 118px;
+}
+
+.location-share-card .secondary-action.is-selected {
+  background: #1f8cff;
+  color: white;
+  box-shadow: 0 0 0 5px rgba(97, 171, 255, 0.18);
+}
+
 .status-choice {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -856,6 +927,19 @@ button {
 .location-tools .secondary-action,
 .emergency-panel .secondary-action {
   border-color: white;
+}
+
+.map-preview {
+  display: flex;
+  min-height: 48px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid white;
+  border-radius: 8px;
+  background: white;
+  color: var(--teal);
+  font-weight: 700;
+  text-decoration: none;
 }
 
 .message-actions {
@@ -1011,6 +1095,13 @@ button {
   margin: 0 0 10px;
   color: var(--muted);
   line-height: 1.6;
+}
+
+.member-share-button {
+  width: 100%;
+  margin: 12px 0;
+  border-color: var(--teal);
+  color: var(--teal);
 }
 
 .family-item .line-code {
@@ -1191,6 +1282,10 @@ footer a {
 
   .family-item,
   .log-item {
+    grid-template-columns: 1fr;
+  }
+
+  .location-share-card {
     grid-template-columns: 1fr;
   }
 

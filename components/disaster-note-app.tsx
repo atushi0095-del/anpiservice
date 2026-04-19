@@ -41,12 +41,6 @@ const statusMessages: Record<EmergencyStatus, string> = {
 const dailyCheckInMessage = "今日も無事です。いつも通り過ごしています。";
 const consentStorageKey = "anpi-note-privacy-consent-v1";
 
-const statusActionCopy: Record<EmergencyStatus, string> = {
-  safe: "無事を記録",
-  need_help: "要支援を記録",
-  unavailable: "返信困難を記録"
-};
-
 const supplyLabels: Record<SupplyCategory, string> = {
   water: "水",
   food: "食料",
@@ -116,6 +110,8 @@ export function DisasterNoteApp() {
   const [emergencyMessage, setEmergencyMessage] = useState(defaultDisasterNoteData.templateMessages[0]);
   const [newTemplateMessage, setNewTemplateMessage] = useState("");
   const [manualLocation, setManualLocation] = useState("");
+  const [locationMapUrl, setLocationMapUrl] = useState("");
+  const [useCustomEmergencyMessage, setUseCustomEmergencyMessage] = useState(false);
   const [selectedEmergencyStatus, setSelectedEmergencyStatus] = useState<EmergencyStatus>("safe");
   const [lastEmergencyStatus, setLastEmergencyStatus] = useState<EmergencyStatus | null>(null);
   const [reviewJustMarked, setReviewJustMarked] = useState(false);
@@ -254,7 +250,9 @@ export function DisasterNoteApp() {
 
   function chooseEmergencyStatus(status: EmergencyStatus) {
     setSelectedEmergencyStatus(status);
-    setEmergencyMessage(statusMessages[status]);
+    if (!useCustomEmergencyMessage) {
+      setEmergencyMessage(statusMessages[status]);
+    }
   }
 
   function addTemplateMessage() {
@@ -276,9 +274,23 @@ export function DisasterNoteApp() {
     setNewTemplateMessage("");
   }
 
+  function getEmergencyMessage(status: EmergencyStatus) {
+    return useCustomEmergencyMessage ? emergencyMessage.trim() || statusMessages[status] : statusMessages[status];
+  }
+
+  function buildEmergencyShareText(status: EmergencyStatus, messageText: string) {
+    const locationLine =
+      data.notificationSettings.locationShareEnabled && manualLocation.trim()
+        ? `現在地: ${manualLocation.trim()}${locationMapUrl ? `\n地図: ${locationMapUrl}` : ""}`
+        : "現在地: 共有していません";
+
+    return `【${statusLabels[status]}】\n${messageText}\n${locationLine}`;
+  }
+
   function recordEmergencyStatus(status: EmergencyStatus, messageOverride?: string) {
     const now = new Date().toISOString();
     const member = data.members[0] || defaultDisasterNoteData.members[0];
+    const messageText = messageOverride || getEmergencyMessage(status);
     setSelectedEmergencyStatus(status);
     setLastEmergencyStatus(status);
     const log: SafetyStatusLog = {
@@ -286,8 +298,11 @@ export function DisasterNoteApp() {
       memberId: member.id,
       memberName: member.name,
       status,
-      message: messageOverride || emergencyMessage || statusMessages[status],
-      locationText: data.notificationSettings.locationShareEnabled ? manualLocation.trim() : undefined,
+      message: messageText,
+      locationText:
+        data.notificationSettings.locationShareEnabled && manualLocation.trim()
+          ? `${manualLocation.trim()}${locationMapUrl ? ` ${locationMapUrl}` : ""}`
+          : undefined,
       createdAt: now
     };
     updateData(
@@ -328,13 +343,49 @@ export function DisasterNoteApp() {
   }
 
   function copyEmergencyText() {
-    const text = `${emergencyMessage}\n現在地: ${
-      data.notificationSettings.locationShareEnabled && manualLocation ? manualLocation : "位置情報は共有していません"
-    }`;
+    const text = buildEmergencyShareText(selectedEmergencyStatus, getEmergencyMessage(selectedEmergencyStatus));
     navigator.clipboard
       ?.writeText(text)
       .then(() => setMessage("共有文をコピーしました。LINEやメールに貼り付けて送れます。"))
       .catch(() => setMessage("共有文をコピーできませんでした。画面の文面を手動で送ってください。"));
+  }
+
+  function shareEmergencyText(status: EmergencyStatus) {
+    const messageText = getEmergencyMessage(status);
+    recordEmergencyStatus(status, messageText);
+    const text = buildEmergencyShareText(status, messageText);
+
+    if (navigator.share) {
+      navigator
+        .share({ title: "安否確認ノート", text })
+        .then(() => setMessage(`${statusLabels[status]}を記録し、共有画面を開きました。`))
+        .catch(() => setMessage(`${statusLabels[status]}を記録しました。共有を中止した場合は、共有文をコピーして送れます。`));
+      return;
+    }
+
+    navigator.clipboard
+      ?.writeText(text)
+      .then(() => setMessage(`${statusLabels[status]}を記録し、共有文をコピーしました。LINEやメールに貼り付けて送れます。`))
+      .catch(() => setMessage(`${statusLabels[status]}を記録しました。画面の文面を手動で送ってください。`));
+  }
+
+  function shareFamilyInvite(member?: HouseholdMember) {
+    const targetName = member?.name ? `${member.name}さん` : "家族";
+    const origin = typeof window !== "undefined" ? window.location.origin : "https://anpinote.vercel.app";
+    const text = `${targetName}へ\n安否確認ノートで家族の連絡先、避難場所、備蓄、緊急時の安否共有を一緒に確認しましょう。\n${origin}\n\n※現時点では端末内保存が中心です。自動同期は今後のクラウド同期機能で対応予定です。`;
+
+    if (navigator.share) {
+      navigator
+        .share({ title: "安否確認ノートへの招待", text, url: origin })
+        .then(() => setMessage("招待の共有画面を開きました。LINEやメールを選んで送れます。"))
+        .catch(() => setMessage("共有を中止しました。必要なら招待文をコピーできます。"));
+      return;
+    }
+
+    navigator.clipboard
+      ?.writeText(text)
+      .then(() => setMessage("招待文をコピーしました。LINEやメールに貼り付けて送れます。"))
+      .catch(() => setMessage("招待文をコピーできませんでした。アプリURLを家族へ送ってください。"));
   }
 
   function fillCurrentLocation() {
@@ -348,8 +399,10 @@ export function DisasterNoteApp() {
       (position) => {
         const { latitude, longitude } = position.coords;
         const locationText = `緯度 ${latitude.toFixed(5)}, 経度 ${longitude.toFixed(5)}`;
+        const mapUrl = `https://www.google.com/maps?q=${latitude.toFixed(5)},${longitude.toFixed(5)}`;
         setManualLocation(locationText);
-        setMessage("現在地を入力しました。常時追跡や履歴保存は行いません。");
+        setLocationMapUrl(mapUrl);
+        setMessage("現在地を入力しました。共有文にGoogleマップで開ける地図リンクを含めます。常時追跡や履歴保存は行いません。");
       },
       () => setMessage("現在地を取得できませんでした。許可設定を確認するか、場所を手動で入力してください。"),
       { enableHighAccuracy: false, timeout: 10000, maximumAge: 60000 }
@@ -514,6 +567,12 @@ export function DisasterNoteApp() {
           <section className="panel">
             <p className="panel-label">家族</p>
             <h2>家族メンバー</h2>
+            <p className="small-copy">
+              家族を追加したら、招待をLINEやメールで送れます。今は端末内保存が中心のため、自動で同じデータが同期されるのはPhase 2のクラウド同期からです。
+            </p>
+            <button type="button" className="wide-action family-share-action" onClick={() => shareFamilyInvite()}>
+              家族へ招待を送る
+            </button>
             <div className="family-add-form">
               <input value={newMemberName} onChange={(event) => setNewMemberName(event.target.value)} placeholder="名前" />
               <input value={newMemberRelation} onChange={(event) => setNewMemberRelation(event.target.value)} placeholder="続柄" />
@@ -529,6 +588,9 @@ export function DisasterNoteApp() {
                     <span className={`pill ${member.latestStatus === "safe" ? "success" : "warning"}`}>
                       {statusLabels[member.latestStatus]}
                     </span>
+                    <button type="button" className="secondary-action member-share-button" onClick={() => shareFamilyInvite(member)}>
+                      この人へ招待を送る
+                    </button>
                     <textarea
                       value={member.notes}
                       onChange={(event) => updateMember(member, { notes: event.target.value })}
@@ -556,92 +618,116 @@ export function DisasterNoteApp() {
           <section className="status-panel emergency-panel">
             <p className="panel-label">緊急モード</p>
             <h2>今の状況と送る文面</h2>
+            <p className="small-copy">
+              文面を確認し、必要なら調整してから下の3つのボタンを押してください。押すと状態を記録し、そのまま共有画面を開きます。
+            </p>
             <div className="emergency-actions">
               <button
                 type="button"
                 className={lastEmergencyStatus === "safe" ? "is-selected" : ""}
-                onClick={() => {
-                  chooseEmergencyStatus("safe");
-                  recordEmergencyStatus("safe", statusMessages.safe);
-                }}
+                onClick={() => shareEmergencyText("safe")}
               >
                 無事
               </button>
               <button
                 type="button"
                 className={`warning-action ${lastEmergencyStatus === "need_help" ? "is-selected" : ""}`}
-                onClick={() => {
-                  chooseEmergencyStatus("need_help");
-                  recordEmergencyStatus("need_help", statusMessages.need_help);
-                }}
+                onClick={() => shareEmergencyText("need_help")}
               >
                 要支援
               </button>
               <button
                 type="button"
                 className={`quiet-action ${lastEmergencyStatus === "unavailable" ? "is-selected" : ""}`}
-                onClick={() => {
-                  chooseEmergencyStatus("unavailable");
-                  recordEmergencyStatus("unavailable", statusMessages.unavailable);
-                }}
+                onClick={() => shareEmergencyText("unavailable")}
               >
                 返信困難
               </button>
             </div>
             <p className="emergency-confirmation">
-              {lastEmergencyStatus ? `${statusLabels[lastEmergencyStatus]}を記録済みです。必要なら下の文面を家族へ送れます。` : "ボタンを押すと、この画面のまま状態を記録します。"}
+              {lastEmergencyStatus ? `${statusLabels[lastEmergencyStatus]}を記録済みです。必要なら共有文をコピーして送れます。` : "上のボタンで、記録と共有をまとめて行います。"}
             </p>
-            <div className="status-choice emergency-choice">
-              {(Object.keys(statusLabels) as EmergencyStatus[]).map((status) => (
-                <button
-                  key={status}
-                  type="button"
-                  className={selectedEmergencyStatus === status ? "is-selected" : ""}
-                  onClick={() => chooseEmergencyStatus(status)}
-                >
-                  {statusLabels[status]}
-                </button>
-              ))}
+            <div className="message-mode">
+              <label className="check-row">
+                <input
+                  type="checkbox"
+                  checked={useCustomEmergencyMessage}
+                  onChange={(event) => {
+                    setUseCustomEmergencyMessage(event.target.checked);
+                    if (!event.target.checked) {
+                      setEmergencyMessage(statusMessages[selectedEmergencyStatus]);
+                    }
+                  }}
+                />
+                <span>送る文面を自分で調整する</span>
+              </label>
             </div>
-            <label className="field-label" htmlFor="emergency-template">送る文面</label>
-            <select id="emergency-template" value={emergencyMessage} onChange={(event) => setEmergencyMessage(event.target.value)}>
-              {Array.from(new Set([...Object.values(statusMessages), ...data.templateMessages])).map((template) => (
-                <option key={template} value={template}>{template}</option>
-              ))}
-            </select>
-            <textarea value={emergencyMessage} onChange={(event) => setEmergencyMessage(event.target.value)} />
-            <div className="template-add-form">
-              <input
-                value={newTemplateMessage}
-                onChange={(event) => setNewTemplateMessage(event.target.value)}
-                placeholder="よく使う文面を追加"
-              />
-              <button type="button" onClick={addTemplateMessage}>テンプレート追加</button>
-            </div>
-            <label className="check-row">
-              <input
-                type="checkbox"
-                checked={data.notificationSettings.locationShareEnabled}
-                onChange={(event) =>
+            {useCustomEmergencyMessage ? (
+              <div className="custom-message-box">
+                <label className="field-label" htmlFor="emergency-template">送る文面</label>
+                <select id="emergency-template" value={emergencyMessage} onChange={(event) => setEmergencyMessage(event.target.value)}>
+                  {Array.from(new Set([...Object.values(statusMessages), ...data.templateMessages])).map((template) => (
+                    <option key={template} value={template}>{template}</option>
+                  ))}
+                </select>
+                <textarea value={emergencyMessage} onChange={(event) => setEmergencyMessage(event.target.value)} />
+                <div className="template-add-form">
+                  <input
+                    value={newTemplateMessage}
+                    onChange={(event) => setNewTemplateMessage(event.target.value)}
+                    placeholder="よく使う文面を追加"
+                  />
+                  <button type="button" onClick={addTemplateMessage}>追加</button>
+                </div>
+              </div>
+            ) : (
+              <div className="auto-message-preview">
+                <span>自動で使う文面</span>
+                <strong>{statusMessages[selectedEmergencyStatus]}</strong>
+              </div>
+            )}
+            <div className="location-share-card">
+              <div>
+                <p className="panel-label">位置情報</p>
+                <h3>{data.notificationSettings.locationShareEnabled ? "今回だけ共有する" : "共有しない"}</h3>
+                <p>常時追跡はせず、ボタンを押した時だけ共有文に含めます。</p>
+              </div>
+              <button
+                type="button"
+                className={data.notificationSettings.locationShareEnabled ? "secondary-action is-selected" : "secondary-action"}
+                onClick={() =>
                   updateData({
                     ...data,
-                    notificationSettings: { ...data.notificationSettings, locationShareEnabled: event.target.checked }
-                  }, event.target.checked ? "位置共有を今回の操作で有効にしました。" : "位置共有をOFFにしました。")
+                    notificationSettings: {
+                      ...data.notificationSettings,
+                      locationShareEnabled: !data.notificationSettings.locationShareEnabled
+                    }
+                  }, data.notificationSettings.locationShareEnabled ? "位置共有をOFFにしました。" : "位置共有を今回の操作で有効にしました。")
                 }
-              />
-              <span>手動で現在地を共有する</span>
-            </label>
+              >
+                {data.notificationSettings.locationShareEnabled ? "位置共有ON" : "位置共有OFF"}
+              </button>
+            </div>
             {data.notificationSettings.locationShareEnabled ? (
               <div className="location-tools">
-                <input value={manualLocation} onChange={(event) => setManualLocation(event.target.value)} placeholder="例: 自宅、駅前、避難所名" />
-                <button type="button" className="secondary-action" onClick={fillCurrentLocation}>現在地を取得して入力</button>
+                <input
+                  value={manualLocation}
+                  onChange={(event) => {
+                    setManualLocation(event.target.value);
+                    setLocationMapUrl("");
+                  }}
+                  placeholder="例: 自宅、駅前、避難所名"
+                />
+                <button type="button" className="secondary-action" onClick={fillCurrentLocation}>現在地を取得して地図リンクを作る</button>
+                {locationMapUrl ? (
+                  <a className="map-preview" href={locationMapUrl} target="_blank" rel="noreferrer">
+                    Googleマップで現在地を開く
+                  </a>
+                ) : null}
               </div>
             ) : null}
             <p className="small-copy">位置情報は常時追跡しません。緊急時または本人が明示的に操作した時だけ共有文に含めます。</p>
             <div className="message-actions">
-              <button type="button" className="wide-action" onClick={() => recordEmergencyStatus(selectedEmergencyStatus)}>
-                {statusActionCopy[selectedEmergencyStatus]}
-              </button>
               <button type="button" className="secondary-action" onClick={copyEmergencyText}>共有文をコピー</button>
             </div>
             <p className="small-copy">救助や安全を保証するものではありません。必要な場合は公的な窓口や身近な人へ連絡してください。</p>
