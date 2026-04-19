@@ -36,6 +36,7 @@ type StatusSummaryItem = {
 type ConsentDoc = {
   id: "terms" | "privacy" | "disclaimer";
   title: string;
+  summary: string[];
   lead: string;
   sections: Array<{ heading: string; body: string }>;
 };
@@ -70,8 +71,14 @@ const consentDocs: ConsentDoc[] = [
   {
     id: "terms",
     title: "利用規約",
+    summary: [
+      "このアプリは家族の防災情報をまとめ、いざという時の安否共有を助けるツールです。",
+      "災害の予測・救助・医療判断はできません。電話や伝言板など公的手段と必ず併用してください。",
+      "家族の同意なく他人の個人情報を登録したり、虚偽情報を入力したりすることは禁止です。",
+      "子どもが使う場合は、保護者が管理してください。"
+    ],
     lead:
-      "安否確認ノートは、日常の見守りと家族の防災情報を整理し、いざという時の状況共有を助けるサービスです。災害の予測、救助、医療判断、生命または身体の安全を保証するものではありません。",
+      "あんぴノートは、日常の見守りと家族の防災情報を整理し、いざという時の状況共有を助けるサービスです。災害の予測、救助、医療判断、生命または身体の安全を保証するものではありません。",
     sections: [
       {
         heading: "利用目的",
@@ -103,8 +110,15 @@ const consentDocs: ConsentDoc[] = [
   {
     id: "privacy",
     title: "プライバシーポリシー",
+    summary: [
+      "入力した家族情報や備蓄は、原則このスマホの中だけに保存されます。",
+      "位置情報は普段は使いません。緊急時に「現在地を取得」を押した時だけ、共有文に含まれます。",
+      "広告への利用、常時追跡、移動履歴の蓄積は一切行いません。",
+      "クラウド同期をONにした場合のみ、サーバーにバックアップされます（任意・後から変更可）。",
+      "設定画面からいつでもデータを削除できます。"
+    ],
     lead:
-      "安否確認ノートは、日常の見守りと家族の備えを整理し、必要な時に情報を確認しやすくするために、利用者が入力した情報を取り扱います。Phase 1では端末保存を基本とし、クラウド同期は任意機能として後続フェーズで提供します。",
+      "あんぴノートは、日常の見守りと家族の備えを整理し、必要な時に情報を確認しやすくするために、利用者が入力した情報を取り扱います。端末保存を基本とし、クラウド同期は任意機能です。",
     sections: [
       {
         heading: "取得する情報",
@@ -124,7 +138,7 @@ const consentDocs: ConsentDoc[] = [
       {
         heading: "保存有無と保存期間",
         body:
-          "Phase 1では位置情報を運営サーバーに保存しません。位置情報は本人の端末上で取得し、本人が送信・コピー・外部共有を行う時だけ共有文に含まれます。端末内に保存した情報は、設定画面から削除できます。"
+          "位置情報を運営サーバーに保存しません。位置情報は本人の端末上で取得し、本人が送信・コピー・外部共有を行う時だけ共有文に含まれます。端末内に保存した情報は、設定画面から削除できます。"
       },
       {
         heading: "第三者提供と外部送信",
@@ -134,7 +148,7 @@ const consentDocs: ConsentDoc[] = [
       {
         heading: "保存先と削除",
         body:
-          "Phase 1では主に利用端末内に保存します。設定画面から端末内データを削除できます。クラウド同期を有効にする場合は、同期先、共有範囲、削除方法を画面上で案内します。"
+          "データは主に利用端末内に保存します。設定画面から端末内データを削除できます。クラウド同期を有効にする場合は、同期先、共有範囲、削除方法を画面上で案内します。"
       },
       {
         heading: "家族共有",
@@ -151,8 +165,14 @@ const consentDocs: ConsentDoc[] = [
   {
     id: "disclaimer",
     title: "免責事項",
+    summary: [
+      "このアプリは「家族の備えを整理するノート」です。命を守ることを保証するものではありません。",
+      "災害時は通信が繋がらないことがあります。電話・伝言板・自治体情報を必ず併用してください。",
+      "登録した避難場所や備蓄は、定期的に自分で確認してください。古い情報は役に立たないことがあります。",
+      "位置情報の正確性や共有の到達は保証できません。"
+    ],
     lead:
-      "安否確認ノートは、日常の見守りと家族の備えを整理し、いざという時の情報共有を助けるためのツールです。命を守る保証、救助の保証、医療判断、災害予測、公的機関への通報代行を提供するものではありません。",
+      "あんぴノートは、日常の見守りと家族の備えを整理し、いざという時の情報共有を助けるためのツールです。命を守る保証、救助の保証、医療判断、災害予測、公的機関への通報代行を提供するものではありません。",
     sections: [
       {
         heading: "通信と通知",
@@ -167,7 +187,7 @@ const consentDocs: ConsentDoc[] = [
       {
         heading: "位置情報",
         body:
-          "位置情報は、緊急時または利用者が明示的に共有した場合のみ扱います。Phase 1では運営サーバーへ保存せず、本人の端末上で共有文に含めるだけです。常時位置追跡、移動履歴の蓄積、行動分析は行いません。位置の正確性、到達可能性、共有先が必ず確認できることを保証するものではありません。"
+          "位置情報は、緊急時または利用者が明示的に共有した場合のみ扱います。運営サーバーへ保存せず、本人の端末上で共有文に含めるだけです。常時位置追跡、移動履歴の蓄積、行動分析は行いません。位置の正確性、到達可能性、共有先が必ず確認できることを保証するものではありません。"
       },
       {
         heading: "紙の控え",
@@ -1176,10 +1196,10 @@ export function DisasterNoteApp() {
           </div>
         </header>
         <section className="panel consent-panel">
-          <p className="panel-label">プライバシーと利用条件</p>
-          <h2>すべて確認すると利用を開始できます</h2>
+          <p className="panel-label">はじめにご確認ください（法令上必須）</p>
+          <h2>3つのポイントを確認してください</h2>
           <p className="small-copy">
-            各文書を最後までスクロールすると同意ボタンが表示されます。3つすべて確認するとアプリを開始できます。
+            各画面のポイントを読んで「同意して次へ」を押すと次に進みます。詳しい法的内容は「法的な詳細を読む」から確認できます。
           </p>
           <div className="consent-progress" aria-label="同意確認の進捗">
             {consentDocs.map((doc, index) => (
@@ -1192,17 +1212,25 @@ export function DisasterNoteApp() {
             ))}
           </div>
           <article key={currentConsentDoc.id} className="consent-document" ref={consentDocumentRef} onScroll={handleConsentScroll}>
-            <p className="panel-label">{consentStep + 1} / {consentDocs.length}</p>
-            <h3>{currentConsentDoc.title}</h3>
-            <p>{currentConsentDoc.lead}</p>
-            {currentConsentDoc.sections.map((section) => (
-              <section key={section.heading}>
-                <h4>{section.heading}</h4>
-                <p>{section.body}</p>
-              </section>
-            ))}
+            <p className="panel-label">{consentStep + 1} / {consentDocs.length}｜{currentConsentDoc.title}</p>
+            <h3>ポイント</h3>
+            <ul className="consent-summary-list">
+              {currentConsentDoc.summary.map((point, i) => (
+                <li key={i}>{point}</li>
+              ))}
+            </ul>
+            <details className="consent-detail">
+              <summary>法的な詳細を読む</summary>
+              <p className="consent-detail-lead">{currentConsentDoc.lead}</p>
+              {currentConsentDoc.sections.map((section) => (
+                <section key={section.heading}>
+                  <h4>{section.heading}</h4>
+                  <p>{section.body}</p>
+                </section>
+              ))}
+            </details>
             <div className="consent-end-marker">
-              {currentConsentDoc.title}の最後まで表示しました。
+              {currentConsentDoc.title}の確認が完了しました。
             </div>
           </article>
           {consentScrolledToEnd ? (
@@ -1260,6 +1288,12 @@ export function DisasterNoteApp() {
           <section className="status-panel disaster-home">
             <p className="panel-label">今日の安否ステータス</p>
             <h2>{monthlyTaskDone ? "今月の備え確認は完了しています" : "今月の備え確認をしましょう"}</h2>
+            {expiringSupplies.length > 0 ? (
+              <button type="button" className="expiry-alert-banner" onClick={() => setExpiryOverviewOpen(true)}>
+                <span className="expiry-alert-icon">⚠</span>
+                <span>期限切れ・期限間近の備蓄が <strong>{expiringSupplies.length}件</strong> あります。備蓄画面で確認してください。</span>
+              </button>
+            ) : null}
             <div className="metric-grid">
               <button type="button" className="family-status-metric" onClick={() => setFamilyOverviewOpen(true)}>
                 <span>家族の状況</span>
@@ -1281,7 +1315,7 @@ export function DisasterNoteApp() {
                 <span>備蓄</span>
                 <strong>{data.supplyItems.length}件</strong>
               </button>
-              <button type="button" onClick={() => setExpiryOverviewOpen(true)}>
+              <button type="button" className={expiringSupplies.length > 0 ? "metric-warning" : ""} onClick={() => setExpiryOverviewOpen(true)}>
                 <span>期限注意</span>
                 <strong>{expiringSupplies.length}件</strong>
               </button>
