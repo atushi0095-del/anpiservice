@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import type { UIEvent } from "react";
 import { defaultDisasterNoteData } from "@/lib/disaster-demo-data";
 import type {
   DisasterNoteData,
@@ -14,6 +15,12 @@ import type {
 } from "@/lib/disaster-types";
 
 type AppScreen = "home" | "family" | "emergency" | "note" | "supplies" | "settings";
+type ConsentDoc = {
+  id: "terms" | "privacy" | "disclaimer";
+  title: string;
+  lead: string;
+  sections: Array<{ heading: string; body: string }>;
+};
 
 const storageKey = "kazoku-bosai-note-v1";
 
@@ -40,6 +47,118 @@ const statusMessages: Record<EmergencyStatus, string> = {
 
 const dailyCheckInMessage = "今日も無事です。いつも通り過ごしています。";
 const consentStorageKey = "anpi-note-privacy-consent-v1";
+
+const consentDocs: ConsentDoc[] = [
+  {
+    id: "terms",
+    title: "利用規約",
+    lead:
+      "安否確認ノートは、日常の見守りと家族の防災情報を整理し、いざという時の状況共有を助けるサービスです。災害の予測、救助、医療判断、生命または身体の安全を保証するものではありません。",
+    sections: [
+      {
+        heading: "利用目的",
+        body:
+          "利用者は、家族メンバー、緊急連絡先、避難場所、備蓄、医療や配慮事項などを自身の責任で登録し、家族内の話し合いと準備の補助として利用します。"
+      },
+      {
+        heading: "緊急モード",
+        body:
+          "SOS、無事、要支援、返信困難などの記録や共有文は、家族間の連絡を補助するものです。通信環境や端末状態により共有できない場合があります。必要に応じて電話、災害用伝言板、公的機関、近隣や親族への連絡を併用してください。"
+      },
+      {
+        heading: "位置情報の扱い",
+        body:
+          "本サービスは常時位置追跡を行いません。位置情報の共有は、緊急時または本人が明示的に操作した場合に限ります。利用者は、共有先と共有内容を確認した上で利用してください。"
+      },
+      {
+        heading: "未成年の利用",
+        body:
+          "未成年が利用する場合は、保護者の同意と管理のもとで利用してください。未成年の単独利用を前提としたサービスではありません。保護者は、連絡先、共有先、位置情報共有の利用有無を確認してください。"
+      },
+      {
+        heading: "禁止事項",
+        body:
+          "本人や家族の同意なく個人情報を登録する行為、虚偽情報の登録、第三者への不適切な共有、サービス運営を妨げる行為を禁止します。"
+      }
+    ]
+  },
+  {
+    id: "privacy",
+    title: "プライバシーポリシー",
+    lead:
+      "安否確認ノートは、日常の見守りと家族の備えを整理し、必要な時に情報を確認しやすくするために、利用者が入力した情報を取り扱います。Phase 1では端末保存を基本とし、クラウド同期は任意機能として後続フェーズで提供します。",
+    sections: [
+      {
+        heading: "取得する情報",
+        body:
+          "家族メンバーの名前、続柄、連絡先、緊急連絡先、避難場所、集合ルール、服薬、アレルギー、注意事項、備蓄品、期限、安否ステータス、緊急時の状態記録、本人が明示的に入力または共有した位置情報を扱います。"
+      },
+      {
+        heading: "利用目的",
+        body:
+          "家族の情報整理、備蓄点検、緊急時の共有文作成、家族への安否共有、オフライン閲覧、利用者からの問い合わせ対応、不正利用防止のために利用します。"
+      },
+      {
+        heading: "位置情報",
+        body:
+          "位置情報は初期状態では利用しません。取得または共有する場合は、緊急時のSOS発動時、または本人が明示的に共有操作した時に限ります。常時バックグラウンド位置追跡、移動履歴の蓄積、行動分析、広告利用は行いません。"
+      },
+      {
+        heading: "保存有無と保存期間",
+        body:
+          "位置情報は原則として運営サーバーに保存しない設計を優先します。家族共有に必要な最低限の中継を行う場合も、共有後は速やかに破棄する方針です。端末内に保存した情報は、設定画面から削除できます。"
+      },
+      {
+        heading: "第三者提供と外部送信",
+        body:
+          "法令に基づく場合を除き、本人の操作または同意なく第三者へ個人情報を提供しません。通知、認証、配信、解析などのSDKや外部サービスを利用する場合は、利用目的、送信先、送信される情報を画面または本ポリシーで案内します。"
+      },
+      {
+        heading: "保存先と削除",
+        body:
+          "Phase 1では主に利用端末内に保存します。設定画面から端末内データを削除できます。クラウド同期を有効にする場合は、同期先、共有範囲、削除方法を画面上で案内します。"
+      },
+      {
+        heading: "家族共有",
+        body:
+          "家族に共有する情報は、利用者が入力または送信操作した範囲に限ります。医療や配慮事項などの情報は、共有先を確認した上で登録してください。"
+      },
+      {
+        heading: "未成年の利用",
+        body:
+          "未成年が利用する場合は、保護者の同意と管理を前提とします。家族共有や位置情報共有を使う場合も、保護者が共有範囲を確認してください。"
+      }
+    ]
+  },
+  {
+    id: "disclaimer",
+    title: "免責事項",
+    lead:
+      "安否確認ノートは、日常の見守りと家族の備えを整理し、いざという時の情報共有を助けるためのツールです。命を守る保証、救助の保証、医療判断、災害予測、公的機関への通報代行を提供するものではありません。",
+    sections: [
+      {
+        heading: "通信と通知",
+        body:
+          "災害時や通信混雑時には、記録、共有、通知、同期が遅延または失敗する場合があります。家族で複数の連絡手段を事前に決めておき、電話、災害用伝言板、自治体や公的機関の情報も併用してください。"
+      },
+      {
+        heading: "登録情報",
+        body:
+          "登録した避難場所、備蓄、医療や配慮事項、連絡先は、利用者自身が定期的に確認してください。古い情報や誤った情報により不利益が生じる可能性があります。"
+      },
+      {
+        heading: "位置情報",
+        body:
+          "位置情報は、緊急時または利用者が明示的に共有した場合のみ扱います。常時位置追跡、移動履歴の蓄積、行動分析は行いません。位置の正確性、到達可能性、共有先が必ず確認できることを保証するものではありません。"
+      },
+      {
+        heading: "紙の控え",
+        body:
+          "印刷した控えには個人情報が含まれます。紛失、盗難、不要になった紙の廃棄に注意してください。紙の控えは、通信障害や端末故障時の補助として利用するものです。"
+      }
+    ]
+  }
+];
 
 const supplyLabels: Record<SupplyCategory, string> = {
   water: "水",
@@ -117,6 +236,13 @@ export function DisasterNoteApp() {
   const [reviewJustMarked, setReviewJustMarked] = useState(false);
   const [dailyJustChecked, setDailyJustChecked] = useState(false);
   const [privacyConsent, setPrivacyConsent] = useState(false);
+  const [consentStep, setConsentStep] = useState(0);
+  const [consentRead, setConsentRead] = useState<Record<ConsentDoc["id"], boolean>>({
+    terms: false,
+    privacy: false,
+    disclaimer: false
+  });
+  const [consentScrolledToEnd, setConsentScrolledToEnd] = useState(false);
 
   useEffect(() => {
     setData(loadLocalData());
@@ -137,6 +263,10 @@ export function DisasterNoteApp() {
       navigator.serviceWorker.register("/sw.js").catch(() => undefined);
     }
   }, []);
+
+  useEffect(() => {
+    setConsentScrolledToEnd(false);
+  }, [consentStep]);
 
   const expiringSupplies = useMemo(
     () =>
@@ -444,6 +574,26 @@ export function DisasterNoteApp() {
     setMessage(checked ? "位置情報と家族共有の方針への同意を記録しました。" : "同意を解除しました。位置共有は必要な時だけ手動でONにしてください。");
   }
 
+  function handleConsentScroll(event: UIEvent<HTMLDivElement>) {
+    const target = event.currentTarget;
+    const reachedEnd = target.scrollTop + target.clientHeight >= target.scrollHeight - 12;
+    if (reachedEnd) {
+      setConsentScrolledToEnd(true);
+    }
+  }
+
+  function acceptCurrentConsentDoc() {
+    const doc = consentDocs[consentStep];
+    setConsentRead((current) => ({ ...current, [doc.id]: true }));
+
+    if (consentStep < consentDocs.length - 1) {
+      setConsentStep((current) => current + 1);
+      return;
+    }
+
+    updatePrivacyConsent(true);
+  }
+
   function printSafetyNote() {
     setMessage("印刷画面を開きます。紙に残して、スマホが使えない時の控えにできます。");
     window.print();
@@ -458,6 +608,10 @@ export function DisasterNoteApp() {
   }
 
   if (!privacyConsent) {
+    const currentConsentDoc = consentDocs[consentStep];
+    const allConsentRead = consentDocs.every((doc) => consentRead[doc.id]);
+    const isLastConsentDoc = consentStep === consentDocs.length - 1;
+
     return (
       <main className="phone-app disaster-app consent-gate">
         <header className="app-header">
@@ -469,26 +623,48 @@ export function DisasterNoteApp() {
             </div>
           </div>
         </header>
-        <section className="panel">
+        <section className="panel consent-panel">
           <p className="panel-label">プライバシーと利用条件</p>
-          <h2>同意後に利用を開始します</h2>
-          <p>
-            このアプリは、家族の安否共有と備えの整理を助けるものです。常時位置追跡、移動履歴の蓄積、行動分析、
-            広告利用は行いません。位置情報は、緊急時または本人が明示的に操作した場合のみ扱います。
+          <h2>すべて確認すると利用を開始できます</h2>
+          <p className="small-copy">
+            各文書を最後までスクロールすると同意ボタンが表示されます。3つすべて確認するとアプリを開始できます。
           </p>
-          <ul className="compact-list">
-            <li>取得情報、利用目的、共有先、保存有無、削除方法を確認してください。</li>
-            <li>未成年が使う場合は、保護者の同意と管理を前提にしてください。</li>
-            <li>通信障害や端末故障に備えて、紙の控えも併用してください。</li>
-          </ul>
-          <div className="legal-links">
-            <a href="/terms">利用規約を読む</a>
-            <a href="/privacy">プライバシーポリシーを読む</a>
-            <a href="/disclaimer">免責事項を読む</a>
+          <div className="consent-progress" aria-label="同意確認の進捗">
+            {consentDocs.map((doc, index) => (
+              <span
+                key={doc.id}
+                className={`${index === consentStep ? "is-current" : ""} ${consentRead[doc.id] ? "is-done" : ""}`}
+              >
+                {consentRead[doc.id] ? "確認済み" : `${index + 1}. ${doc.title}`}
+              </span>
+            ))}
           </div>
-          <button type="button" className="wide-action" onClick={() => updatePrivacyConsent(true)}>
-            内容を確認して開始する
-          </button>
+          <article className="consent-document" onScroll={handleConsentScroll}>
+            <p className="panel-label">{consentStep + 1} / {consentDocs.length}</p>
+            <h3>{currentConsentDoc.title}</h3>
+            <p>{currentConsentDoc.lead}</p>
+            {currentConsentDoc.sections.map((section) => (
+              <section key={section.heading}>
+                <h4>{section.heading}</h4>
+                <p>{section.body}</p>
+              </section>
+            ))}
+            <div className="consent-end-marker">
+              {currentConsentDoc.title}の最後まで表示しました。
+            </div>
+          </article>
+          {consentScrolledToEnd ? (
+            <button type="button" className="wide-action" onClick={acceptCurrentConsentDoc}>
+              {isLastConsentDoc ? "すべて同意して開始する" : `${currentConsentDoc.title}に同意して次へ`}
+            </button>
+          ) : (
+            <p className="consent-scroll-hint">下までスクロールすると同意ボタンが表示されます。</p>
+          )}
+          <p className="small-copy">
+            {allConsentRead
+              ? "すべての確認が完了しています。"
+              : "同意後も、設定画面からプライバシー方針とデータ削除方法を確認できます。"}
+          </p>
         </section>
       </main>
     );
