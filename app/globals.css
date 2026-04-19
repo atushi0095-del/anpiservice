@@ -982,6 +982,17 @@ button {
   line-height: 1.55;
 }
 
+.inline-link-button {
+  min-height: 0;
+  border: 0;
+  background: transparent;
+  color: white;
+  padding: 0 0 0 6px;
+  text-decoration: underline;
+  font-size: inherit;
+  font-weight: 700;
+}
+
 .location-share-card .secondary-action {
   min-width: 118px;
 }
@@ -1209,6 +1220,10 @@ button {
   background: #bd5247;
   color: white;
   padding: 0 16px;
+}
+
+.supply-delete-button {
+  margin: 0 0 12px;
 }
 
 .print-sheet {

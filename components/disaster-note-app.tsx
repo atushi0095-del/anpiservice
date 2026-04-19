@@ -172,6 +172,22 @@ const supplyLabels: Record<SupplyCategory, string> = {
   other: "その他"
 };
 
+const supplyTemplates: Array<{ name: string; category: SupplyCategory; quantity: string }> = [
+  { name: "飲料水", category: "water", quantity: "1人1日3Lを3日分" },
+  { name: "非常食", category: "food", quantity: "3日分" },
+  { name: "モバイルバッテリー", category: "battery", quantity: "1台以上" },
+  { name: "常備薬", category: "medicine", quantity: "最低3日分" },
+  { name: "懐中電灯", category: "battery", quantity: "1本" },
+  { name: "乾電池", category: "battery", quantity: "予備" },
+  { name: "携帯トイレ", category: "other", quantity: "家族人数分" },
+  { name: "ウェットティッシュ", category: "other", quantity: "1袋" },
+  { name: "救急セット", category: "medicine", quantity: "1式" },
+  { name: "現金・小銭", category: "other", quantity: "必要分" },
+  { name: "身分証コピー", category: "other", quantity: "家族分" },
+  { name: "おむつ・ミルク", category: "baby", quantity: "必要分" },
+  { name: "ペット用品", category: "pet", quantity: "必要分" }
+];
+
 function formatDate(value: string) {
   if (!value) {
     return "未設定";
@@ -208,7 +224,19 @@ function loadLocalData(): DisasterNoteData {
 
   try {
     const raw = window.localStorage.getItem(storageKey);
-    return raw ? { ...defaultDisasterNoteData, ...JSON.parse(raw) } : defaultDisasterNoteData;
+    if (!raw) {
+      return defaultDisasterNoteData;
+    }
+
+    const saved = { ...defaultDisasterNoteData, ...JSON.parse(raw) } as DisasterNoteData;
+    const savedSupplyNames = new Set(saved.supplyItems.map((item) => item.name));
+    return {
+      ...saved,
+      supplyItems: [
+        ...saved.supplyItems,
+        ...defaultDisasterNoteData.supplyItems.filter((item) => !savedSupplyNames.has(item.name))
+      ]
+    };
   } catch {
     return defaultDisasterNoteData;
   }
@@ -229,12 +257,14 @@ export function DisasterNoteApp() {
   const [newSupplyCategory, setNewSupplyCategory] = useState<SupplyCategory>("food");
   const [newSupplyQuantity, setNewSupplyQuantity] = useState("");
   const [newSupplyExpiresAt, setNewSupplyExpiresAt] = useState("");
+  const [selectedSupplyTemplate, setSelectedSupplyTemplate] = useState("");
   const [newPlaceName, setNewPlaceName] = useState("");
   const [newPlaceAddress, setNewPlaceAddress] = useState("");
   const [emergencyMessage, setEmergencyMessage] = useState(defaultDisasterNoteData.templateMessages[0]);
   const [newTemplateMessage, setNewTemplateMessage] = useState("");
   const [manualLocation, setManualLocation] = useState("");
   const [locationMapUrl, setLocationMapUrl] = useState("");
+  const [emergencyLocationEnabled, setEmergencyLocationEnabled] = useState(false);
   const [useCustomEmergencyMessage, setUseCustomEmergencyMessage] = useState(false);
   const [selectedEmergencyStatus, setSelectedEmergencyStatus] = useState<EmergencyStatus>("safe");
   const [lastEmergencyStatus, setLastEmergencyStatus] = useState<EmergencyStatus | null>(null);
@@ -289,6 +319,7 @@ export function DisasterNoteApp() {
   const checkedCount = data.supplyItems.filter((item) => item.checked).length;
   const monthlyTaskDone = new Date(data.lastReviewedAt).getMonth() === new Date().getMonth();
   const latestLog = data.statusLogs[0];
+  const selectedSupplyCount = data.supplyItems.filter((item) => item.checked).length;
   const familyStatusCounts = useMemo(
     () => ({
       safe: data.members.filter((member) => member.latestStatus === "safe").length,
@@ -299,15 +330,7 @@ export function DisasterNoteApp() {
     [data.members]
   );
   const familyStatusSummary =
-    data.members.length === 0
-      ? "家族未登録"
-      : familyStatusCounts.need_help > 0
-        ? `要支援 ${familyStatusCounts.need_help}人`
-        : familyStatusCounts.unavailable > 0
-          ? `返信困難 ${familyStatusCounts.unavailable}人`
-          : familyStatusCounts.unconfirmed > 0
-            ? `未確認 ${familyStatusCounts.unconfirmed}人`
-            : "全員無事";
+    data.members.length === 0 ? "家族未登録" : `${data.members.length}人の状況を見る`;
   const statusDialogMembers =
     statusDialog === "unconfirmed"
       ? data.members.filter((member) => member.latestStatus === "unavailable" && !member.latestStatusAt)
@@ -407,6 +430,34 @@ export function DisasterNoteApp() {
     setNewSupplyName("");
     setNewSupplyQuantity("");
     setNewSupplyExpiresAt("");
+    setSelectedSupplyTemplate("");
+  }
+
+  function applySupplyTemplate(templateName: string) {
+    setSelectedSupplyTemplate(templateName);
+    const template = supplyTemplates.find((item) => item.name === templateName);
+    if (!template) {
+      return;
+    }
+
+    setNewSupplyName(template.name);
+    setNewSupplyCategory(template.category);
+    setNewSupplyQuantity(template.quantity);
+  }
+
+  function deleteCheckedSupplies() {
+    if (selectedSupplyCount === 0) {
+      setMessage("削除する備蓄品にチェックを入れてください。");
+      return;
+    }
+
+    updateData(
+      {
+        ...data,
+        supplyItems: data.supplyItems.filter((item) => !item.checked)
+      },
+      `チェックした備蓄品を${selectedSupplyCount}件削除しました。`
+    );
   }
 
   function updateSupply(supply: SupplyItem, patch: Partial<SupplyItem>) {
@@ -487,7 +538,7 @@ export function DisasterNoteApp() {
 
   function buildEmergencyShareText(status: EmergencyStatus, messageText: string) {
     const locationLine =
-      data.notificationSettings.locationShareEnabled && manualLocation.trim()
+      emergencyLocationEnabled && manualLocation.trim()
         ? `現在地: ${manualLocation.trim()}${locationMapUrl ? `\n地図: ${locationMapUrl}` : ""}`
         : "現在地: 共有していません";
 
@@ -507,7 +558,7 @@ export function DisasterNoteApp() {
       status,
       message: messageText,
       locationText:
-        data.notificationSettings.locationShareEnabled && manualLocation.trim()
+        emergencyLocationEnabled && manualLocation.trim()
           ? `${manualLocation.trim()}${locationMapUrl ? ` ${locationMapUrl}` : ""}`
           : undefined,
       createdAt: now
@@ -625,24 +676,16 @@ export function DisasterNoteApp() {
   }
 
   function toggleLocationShare() {
-    if (data.notificationSettings.locationShareEnabled) {
-      updateData(
-        {
-          ...data,
-          notificationSettings: { ...data.notificationSettings, locationShareEnabled: false }
-        },
-        "位置共有をOFFにしました。"
-      );
+    if (emergencyLocationEnabled) {
+      setEmergencyLocationEnabled(false);
+      setManualLocation("");
+      setLocationMapUrl("");
+      setMessage("今回の位置共有をOFFにしました。");
       return;
     }
 
-    updateData(
-      {
-        ...data,
-        notificationSettings: { ...data.notificationSettings, locationShareEnabled: true }
-      },
-      "位置共有をONにしました。現在地の取得許可を確認します。"
-    );
+    setEmergencyLocationEnabled(true);
+    setMessage("今回だけ位置共有をONにしました。現在地の取得許可を確認します。取得後も、送信するまで家族には共有されません。");
     fillCurrentLocation();
   }
 
@@ -667,9 +710,13 @@ export function DisasterNoteApp() {
 
   function acceptCurrentConsentDoc() {
     const doc = consentDocs[consentStep];
+    setConsentScrolledToEnd(false);
     setConsentRead((current) => ({ ...current, [doc.id]: true }));
 
     if (consentStep < consentDocs.length - 1) {
+      if (consentDocumentRef.current) {
+        consentDocumentRef.current.scrollTop = 0;
+      }
       setConsentStep((current) => current + 1);
       return;
     }
@@ -722,7 +769,7 @@ export function DisasterNoteApp() {
               </span>
             ))}
           </div>
-          <article className="consent-document" ref={consentDocumentRef} onScroll={handleConsentScroll}>
+          <article key={currentConsentDoc.id} className="consent-document" ref={consentDocumentRef} onScroll={handleConsentScroll}>
             <p className="panel-label">{consentStep + 1} / {consentDocs.length}</p>
             <h3>{currentConsentDoc.title}</h3>
             <p>{currentConsentDoc.lead}</p>
@@ -789,11 +836,11 @@ export function DisasterNoteApp() {
 
           <section className="status-panel disaster-home">
             <p className="panel-label">今日の安否ステータス</p>
-            <h2>{monthlyTaskDone ? "今月の家族確認は完了しています" : "今月の家族確認があります"}</h2>
+            <h2>{monthlyTaskDone ? "今月の備え確認は完了しています" : "今月の備え確認をしましょう"}</h2>
             <div className="metric-grid">
               <button type="button" onClick={() => setActiveScreen("family")}>
-                <span>家族状況</span>
-                <strong>{familyStatusSummary}</strong>
+                <span>家族</span>
+                <strong>{data.members.length}人</strong>
               </button>
               <button type="button" onClick={() => setActiveScreen("settings")}>
                 <span>最終更新</span>
@@ -821,7 +868,7 @@ export function DisasterNoteApp() {
 
           <section className="panel compact-panel">
             <p className="panel-label">家族確認メモ</p>
-            <h2>{monthlyTaskDone ? "今月の家族確認が完了しています" : "今月、家族で確認すること"}</h2>
+            <h2>{monthlyTaskDone ? "今月の備え確認が完了しています" : "今月、家族で確認すること"}</h2>
             <ul className="compact-list">
               <li>集合場所と連絡手順を確認</li>
               <li>備蓄の期限と数量を確認</li>
@@ -831,7 +878,7 @@ export function DisasterNoteApp() {
               家族で確認した日: {formatDate(data.lastReviewedAt)}
             </p>
             <button type="button" className={reviewJustMarked ? "wide-action is-complete" : "wide-action"} onClick={markReviewed}>
-              {reviewJustMarked ? "家族確認を完了しました" : "家族確認を完了にする"}
+              {reviewJustMarked ? "備え確認を完了しました" : "備え確認を完了にする"}
             </button>
           </section>
 
@@ -971,18 +1018,21 @@ export function DisasterNoteApp() {
             <div className="location-share-card">
               <div>
                 <p className="panel-label">位置情報</p>
-                <h3>{data.notificationSettings.locationShareEnabled ? "今回だけ共有する" : "共有しない"}</h3>
-                <p>常時追跡はせず、ボタンを押した時だけ共有文に含めます。</p>
+                <h3>{emergencyLocationEnabled ? "今回だけ共有文に含める" : "共有しない"}</h3>
+                <p>
+                  位置共有は初期OFFです。ONを押した時だけ本人のスマホで現在地を取得し、送信する文面に含めます。
+                  <button type="button" className="inline-link-button" onClick={() => setActiveScreen("settings")}>詳しい説明</button>
+                </p>
               </div>
               <button
                 type="button"
-                className={data.notificationSettings.locationShareEnabled ? "secondary-action is-selected" : "secondary-action"}
+                className={emergencyLocationEnabled ? "secondary-action is-selected" : "secondary-action"}
                 onClick={toggleLocationShare}
               >
-                {data.notificationSettings.locationShareEnabled ? "位置共有ON" : "現在地を取得してON"}
+                {emergencyLocationEnabled ? "位置共有ON" : "現在地を取得してON"}
               </button>
             </div>
-            {data.notificationSettings.locationShareEnabled ? (
+            {emergencyLocationEnabled ? (
               <div className="location-tools">
                 <input
                   value={manualLocation}
@@ -1105,9 +1155,16 @@ export function DisasterNoteApp() {
           <section className="panel">
             <p className="panel-label">備蓄チェック</p>
             <h2>持ち出し品と備蓄</h2>
+            <p className="small-copy">チェックは確認済み・削除対象の選択に使えます。不要になったものはまとめて削除できます。</p>
             <details className="add-details">
               <summary>備蓄品を追加</summary>
               <div className="family-add-form">
+                <select value={selectedSupplyTemplate} onChange={(event) => applySupplyTemplate(event.target.value)}>
+                  <option value="">防災品テンプレートから選ぶ</option>
+                  {supplyTemplates.map((template) => (
+                    <option key={template.name} value={template.name}>{template.name}</option>
+                  ))}
+                </select>
                 <input value={newSupplyName} onChange={(event) => setNewSupplyName(event.target.value)} placeholder="品名" />
                 <select value={newSupplyCategory} onChange={(event) => setNewSupplyCategory(event.target.value as SupplyCategory)}>
                   {Object.entries(supplyLabels).map(([value, label]) => (
@@ -1119,6 +1176,9 @@ export function DisasterNoteApp() {
                 <button type="button" onClick={addSupply}>追加</button>
               </div>
             </details>
+            <button type="button" className="danger-button supply-delete-button" onClick={deleteCheckedSupplies}>
+              チェックした備蓄品を削除
+            </button>
             <div className="supply-list compact-supply-list">
               {data.supplyItems.map((item) => {
                 const remaining = daysUntil(item.expiresAt);
@@ -1193,6 +1253,10 @@ export function DisasterNoteApp() {
               常時位置追跡、移動履歴の蓄積、行動分析、広告利用は行いません。現在地は緊急時または本人の明示操作時のみ、
               家族への安否共有に必要な範囲で扱います。
             </p>
+            <p className="small-copy">
+              有事画面の位置共有は初期OFFです。本人が「現在地を取得してON」を押した時だけスマホの許可画面が出ます。
+              取得した位置情報は送信前の共有文に入るだけで、送信・コピー・外部共有を行うまでは家族にも運営側にも共有されません。
+            </p>
             <label className="check-row">
               <input
                 type="checkbox"
@@ -1254,6 +1318,16 @@ export function DisasterNoteApp() {
                 <p>該当する家族はいません。</p>
               )}
             </div>
+            <button
+              type="button"
+              className="secondary-action"
+              onClick={() => {
+                setStatusDialog(null);
+                setActiveScreen("family");
+              }}
+            >
+              家族画面で確認する
+            </button>
             <button type="button" className="wide-action" onClick={() => setStatusDialog(null)}>
               閉じる
             </button>
