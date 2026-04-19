@@ -796,10 +796,13 @@ button {
   gap: 10px;
 }
 
-.metric-grid div {
+.metric-grid button {
   border-radius: 8px;
+  border: 0;
   background: rgba(255, 255, 255, 0.14);
+  color: white;
   padding: 12px;
+  text-align: left;
 }
 
 .metric-grid span {
@@ -821,7 +824,9 @@ button {
   gap: 8px;
 }
 
-.family-status-strip span {
+.family-status-strip button {
+  min-height: 44px;
+  border: 0;
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.14);
   color: white;
@@ -835,7 +840,7 @@ button {
   margin-bottom: 12px;
 }
 
-.family-status-strip-light span {
+.family-status-strip-light button {
   background: #f1f7f5;
   color: var(--teal);
 }
@@ -845,22 +850,24 @@ button {
 }
 
 .emergency-panel {
-  gap: 18px;
+  gap: 12px;
   background: #982f38;
   border-color: #982f38;
 }
 
 .emergency-actions {
   display: grid;
-  gap: 10px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
 }
 
 .emergency-actions button {
-  min-height: 72px;
+  min-height: 64px;
   border-color: white;
   background: white;
   color: var(--teal);
-  font-size: 1.25rem;
+  padding: 0 8px;
+  font-size: 1.08rem;
 }
 
 .emergency-actions button.is-selected {
@@ -891,6 +898,10 @@ button {
   padding: 10px 12px;
   font-weight: 700;
   line-height: 1.55;
+}
+
+.emergency-message-preview {
+  padding: 10px;
 }
 
 .message-mode .check-row,
@@ -1208,6 +1219,80 @@ button {
   margin: 12px 0;
   border-color: var(--teal);
   color: var(--teal);
+}
+
+.family-status-panel {
+  padding-bottom: 20px;
+}
+
+.family-item-compact {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px;
+  padding: 12px;
+}
+
+.family-item-main {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.family-item-main h3,
+.family-item-main p {
+  margin: 0;
+}
+
+.family-item-main p {
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.member-detail {
+  border-top: 1px solid var(--line);
+  padding-top: 8px;
+}
+
+.member-detail summary {
+  cursor: pointer;
+  color: var(--teal);
+  font-weight: 700;
+}
+
+.member-detail textarea {
+  margin-top: 8px;
+}
+
+.latest-share-panel[hidden] {
+  display: none;
+}
+
+.status-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: grid;
+  place-items: end center;
+  background: rgba(23, 33, 31, 0.38);
+  padding: 16px;
+}
+
+.status-modal {
+  width: min(520px, 100%);
+  max-height: 78vh;
+  overflow-y: auto;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: white;
+  padding: 20px;
+  box-shadow: 0 18px 46px rgba(23, 33, 31, 0.28);
+}
+
+.status-modal-list {
+  display: grid;
+  gap: 4px;
 }
 
 .family-item .line-code {

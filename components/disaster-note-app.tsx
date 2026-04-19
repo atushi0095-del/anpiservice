@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { UIEvent } from "react";
 import { defaultDisasterNoteData } from "@/lib/disaster-demo-data";
 import type {
@@ -236,6 +236,7 @@ export function DisasterNoteApp() {
   const [reviewJustMarked, setReviewJustMarked] = useState(false);
   const [dailyJustChecked, setDailyJustChecked] = useState(false);
   const [privacyConsent, setPrivacyConsent] = useState(false);
+  const consentDocumentRef = useRef<HTMLElement | null>(null);
   const [consentStep, setConsentStep] = useState(0);
   const [consentRead, setConsentRead] = useState<Record<ConsentDoc["id"], boolean>>({
     terms: false,
@@ -243,6 +244,7 @@ export function DisasterNoteApp() {
     disclaimer: false
   });
   const [consentScrolledToEnd, setConsentScrolledToEnd] = useState(false);
+  const [statusDialog, setStatusDialog] = useState<EmergencyStatus | null>(null);
 
   useEffect(() => {
     setData(loadLocalData());
@@ -266,6 +268,9 @@ export function DisasterNoteApp() {
 
   useEffect(() => {
     setConsentScrolledToEnd(false);
+    if (consentDocumentRef.current) {
+      consentDocumentRef.current.scrollTop = 0;
+    }
   }, [consentStep]);
 
   const expiringSupplies = useMemo(
@@ -293,8 +298,15 @@ export function DisasterNoteApp() {
       : familyStatusCounts.need_help > 0
         ? `要支援 ${familyStatusCounts.need_help}人`
         : familyStatusCounts.unavailable > 0
-          ? `未確認 ${familyStatusCounts.unavailable}人`
+          ? `未確認・返信困難 ${familyStatusCounts.unavailable}人`
           : "全員無事";
+  const statusDialogMembers = statusDialog ? data.members.filter((member) => member.latestStatus === statusDialog) : [];
+  const statusDialogTitle =
+    statusDialog === "safe"
+      ? "無事の家族"
+      : statusDialog === "need_help"
+        ? "要支援の家族"
+        : "未確認・返信困難の家族";
 
   function updateData(next: DisasterNoteData, nextMessage = "保存しました。") {
     setData(next);
@@ -639,7 +651,7 @@ export function DisasterNoteApp() {
               </span>
             ))}
           </div>
-          <article className="consent-document" onScroll={handleConsentScroll}>
+          <article className="consent-document" ref={consentDocumentRef} onScroll={handleConsentScroll}>
             <p className="panel-label">{consentStep + 1} / {consentDocs.length}</p>
             <h3>{currentConsentDoc.title}</h3>
             <p>{currentConsentDoc.lead}</p>
@@ -691,7 +703,7 @@ export function DisasterNoteApp() {
         <div className={activeScreen === "home" ? "screen-page is-active" : "screen-page"} hidden={activeScreen !== "home"}>
           <section className={dailyJustChecked ? "status-panel daily-check-panel checkin-complete" : "status-panel daily-check-panel"}>
             <p className="panel-label">日常の安否確認</p>
-            <h2>{dailyJustChecked ? "今日の安否確認が完了しました" : "今日の無事を家族に残す"}</h2>
+            <h2>{dailyJustChecked ? "今日の安否確認が完了しました" : "無事を家族に残す"}</h2>
             <button
               type="button"
               className={dailyJustChecked ? "checkin-button is-complete" : "checkin-button"}
@@ -700,7 +712,7 @@ export function DisasterNoteApp() {
               無事です
             </button>
             <p className="checkin-feedback">
-              {dailyJustChecked ? `最終安否確認: ${formatDate(data.members[0]?.latestStatusAt || data.statusLogs[0]?.createdAt || "")}` : "日常の見守り用です。緊急時は下の「有事の安否共有」を使ってください。"}
+              {dailyJustChecked ? `最終安否確認: ${formatDate(data.members[0]?.latestStatusAt || data.statusLogs[0]?.createdAt || "")}` : "日常でも、急いで無事だけ伝えたい時でも使えます。下の人数表示にも反映されます。"}
             </p>
           </section>
 
@@ -708,27 +720,27 @@ export function DisasterNoteApp() {
             <p className="panel-label">今日の安否ステータス</p>
             <h2>{monthlyTaskDone ? "今月の家族確認は完了しています" : "今月の家族確認があります"}</h2>
             <div className="metric-grid">
-              <div>
+              <button type="button" onClick={() => setActiveScreen("family")}>
                 <span>家族状況</span>
                 <strong>{familyStatusSummary}</strong>
-              </div>
-              <div>
+              </button>
+              <button type="button" onClick={() => setActiveScreen("settings")}>
                 <span>最終更新</span>
                 <strong>{formatDate(data.lastReviewedAt)}</strong>
-              </div>
-              <div>
+              </button>
+              <button type="button" onClick={() => setActiveScreen("supplies")}>
                 <span>備蓄</span>
                 <strong>{checkedCount}/{data.supplyItems.length}</strong>
-              </div>
-              <div>
+              </button>
+              <button type="button" onClick={() => setActiveScreen("supplies")}>
                 <span>期限注意</span>
                 <strong>{expiringSupplies.length}件</strong>
-              </div>
+              </button>
             </div>
             <div className="family-status-strip">
-              <span>無事 {familyStatusCounts.safe}人</span>
-              <span>要支援 {familyStatusCounts.need_help}人</span>
-              <span>未確認 {familyStatusCounts.unavailable}人</span>
+              <button type="button" onClick={() => setStatusDialog("safe")}>無事 {familyStatusCounts.safe}人</button>
+              <button type="button" onClick={() => setStatusDialog("need_help")}>要支援 {familyStatusCounts.need_help}人</button>
+              <button type="button" onClick={() => setStatusDialog("unavailable")}>未確認 {familyStatusCounts.unavailable}人</button>
             </div>
             <button type="button" className="checkin-button emergency-launch" onClick={() => setActiveScreen("emergency")}>
               有事の安否共有
@@ -751,7 +763,7 @@ export function DisasterNoteApp() {
             </button>
           </section>
 
-          <section className="panel compact-panel">
+          <section className="panel compact-panel latest-share-panel" hidden>
             <p className="panel-label">最新の共有</p>
             <h2>{latestLog ? `${latestLog.memberName}さん: ${statusLabels[latestLog.status]}` : "まだ記録がありません"}</h2>
             {latestLog ? <p className="latest-share-meta">{formatDate(latestLog.createdAt)} の記録</p> : null}
@@ -769,6 +781,17 @@ export function DisasterNoteApp() {
         </div>
 
         <div className={activeScreen === "family" ? "screen-page is-active" : "screen-page"} hidden={activeScreen !== "family"}>
+          <section className="panel compact-panel family-status-panel">
+            <p className="panel-label">家族の状況</p>
+            <h2>{familyStatusSummary}</h2>
+            <div className="family-status-strip family-status-strip-light">
+              <button type="button" onClick={() => setStatusDialog("safe")}>無事 {familyStatusCounts.safe}人</button>
+              <button type="button" onClick={() => setStatusDialog("need_help")}>要支援 {familyStatusCounts.need_help}人</button>
+              <button type="button" onClick={() => setStatusDialog("unavailable")}>未確認 {familyStatusCounts.unavailable}人</button>
+            </div>
+            <p className="small-copy">未確認は、まだ安否が入っていない、または返信が難しい状態です。</p>
+          </section>
+
           <section className="panel">
             <p className="panel-label">家族</p>
             <h2>家族メンバー</h2>
@@ -786,13 +809,18 @@ export function DisasterNoteApp() {
             </div>
             <div className="family-list">
               {data.members.map((member) => (
-                <article className="family-item disaster-card" key={member.id}>
-                  <div>
-                    <h3>{member.name}</h3>
-                    <p>{member.relation} / {member.phone || "連絡先未設定"}</p>
+                <article className="family-item family-item-compact disaster-card" key={member.id}>
+                  <div className="family-item-main">
+                    <div>
+                      <h3>{member.name}</h3>
+                      <p>{member.relation} / {member.phone || "連絡先未設定"}</p>
+                    </div>
                     <span className={`pill ${member.latestStatus === "safe" ? "success" : "warning"}`}>
                       {statusLabels[member.latestStatus]}
                     </span>
+                  </div>
+                  <details className="member-detail">
+                    <summary>メモ・招待</summary>
                     <button type="button" className="secondary-action member-share-button" onClick={() => shareFamilyInvite(member)}>
                       この人へ招待を送る
                     </button>
@@ -801,7 +829,7 @@ export function DisasterNoteApp() {
                       onChange={(event) => updateMember(member, { notes: event.target.value })}
                       placeholder="注意事項、迎えのルール、連絡の優先順"
                     />
-                  </div>
+                  </details>
                 </article>
               ))}
             </div>
@@ -818,27 +846,12 @@ export function DisasterNoteApp() {
             ))}
           </section>
 
-          <section className="panel compact-panel">
-            <p className="panel-label">家族の状況</p>
-            <h2>{familyStatusSummary}</h2>
-            <div className="family-status-strip family-status-strip-light">
-              <span>無事 {familyStatusCounts.safe}人</span>
-              <span>要支援 {familyStatusCounts.need_help}人</span>
-              <span>未確認 {familyStatusCounts.unavailable}人</span>
-            </div>
-            {data.members.map((member) => (
-              <div className="setting-line" key={member.id}>
-                <span>{member.name}</span>
-                <strong>{statusLabels[member.latestStatus]}</strong>
-              </div>
-            ))}
-          </section>
         </div>
 
         <div className={activeScreen === "emergency" ? "screen-page is-active" : "screen-page"} hidden={activeScreen !== "emergency"}>
           <section className="status-panel emergency-panel">
             <p className="panel-label">緊急モード</p>
-            <h2>今の状況と送る文面</h2>
+            <h2>今の状況を送る</h2>
             <p className="small-copy">
               まず状況を選び、位置情報を含めるか決めてから送信します。送信後、家族状況と最新の共有に反映されます。
             </p>
@@ -870,6 +883,10 @@ export function DisasterNoteApp() {
                 ? `${statusLabels[lastEmergencyStatus]}を送信済みです。必要ならもう一度送信できます。`
                 : `${statusLabels[selectedEmergencyStatus]}の文面を準備しています。`}
             </p>
+            <div className="auto-message-preview emergency-message-preview">
+              <span>送信される内容</span>
+              <strong>{buildEmergencyShareText(selectedEmergencyStatus, getEmergencyMessage(selectedEmergencyStatus))}</strong>
+            </div>
             <div className="location-share-card">
               <div>
                 <p className="panel-label">位置情報</p>
@@ -910,10 +927,6 @@ export function DisasterNoteApp() {
                 ) : null}
               </div>
             ) : null}
-            <div className="auto-message-preview">
-              <span>送信される内容</span>
-              <strong>{buildEmergencyShareText(selectedEmergencyStatus, getEmergencyMessage(selectedEmergencyStatus))}</strong>
-            </div>
             <div className="message-actions">
               <button type="button" className="wide-action" onClick={sendEmergencyUpdate}>
                 アプリ内に送信する
@@ -1144,6 +1157,33 @@ export function DisasterNoteApp() {
           </section>
         </div>
       </section>
+
+      {statusDialog ? (
+        <div className="status-modal-backdrop" role="presentation" onClick={() => setStatusDialog(null)}>
+          <section className="status-modal" role="dialog" aria-modal="true" aria-label={statusDialogTitle} onClick={(event) => event.stopPropagation()}>
+            <p className="panel-label">家族の状況</p>
+            <h2>{statusDialogTitle}</h2>
+            {statusDialog === "unavailable" ? (
+              <p className="small-copy">未確認は、まだ安否が入っていない、または返信が難しい状態です。</p>
+            ) : null}
+            <div className="status-modal-list">
+              {statusDialogMembers.length > 0 ? (
+                statusDialogMembers.map((member) => (
+                  <div className="setting-line" key={member.id}>
+                    <span>{member.name}</span>
+                    <strong>{member.latestStatusAt ? formatDate(member.latestStatusAt) : "時刻未設定"}</strong>
+                  </div>
+                ))
+              ) : (
+                <p>該当する家族はいません。</p>
+              )}
+            </div>
+            <button type="button" className="wide-action" onClick={() => setStatusDialog(null)}>
+              閉じる
+            </button>
+          </section>
+        </div>
+      ) : null}
 
       <nav className="bottom-nav disaster-nav" aria-label="画面切り替え">
         {screens.map((screen) => (
