@@ -17,6 +17,12 @@ import type {
 
 type AppScreen = "home" | "family" | "emergency" | "note" | "supplies" | "settings";
 type StatusDialog = EmergencyStatus | "unconfirmed";
+type StatusSummaryItem = {
+  id: StatusDialog;
+  label: string;
+  count: number;
+  helper: string;
+};
 type ConsentDoc = {
   id: "terms" | "privacy" | "disclaimer";
   title: string;
@@ -108,7 +114,7 @@ const consentDocs: ConsentDoc[] = [
       {
         heading: "保存有無と保存期間",
         body:
-          "位置情報は原則として運営サーバーに保存しない設計を優先します。家族共有に必要な最低限の中継を行う場合も、共有後は速やかに破棄する方針です。端末内に保存した情報は、設定画面から削除できます。"
+          "Phase 1では位置情報を運営サーバーに保存しません。位置情報は本人の端末上で取得し、本人が送信・コピー・外部共有を行う時だけ共有文に含まれます。端末内に保存した情報は、設定画面から削除できます。"
       },
       {
         heading: "第三者提供と外部送信",
@@ -151,7 +157,7 @@ const consentDocs: ConsentDoc[] = [
       {
         heading: "位置情報",
         body:
-          "位置情報は、緊急時または利用者が明示的に共有した場合のみ扱います。常時位置追跡、移動履歴の蓄積、行動分析は行いません。位置の正確性、到達可能性、共有先が必ず確認できることを保証するものではありません。"
+          "位置情報は、緊急時または利用者が明示的に共有した場合のみ扱います。Phase 1では運営サーバーへ保存せず、本人の端末上で共有文に含めるだけです。常時位置追跡、移動履歴の蓄積、行動分析は行いません。位置の正確性、到達可能性、共有先が必ず確認できることを保証するものではありません。"
       },
       {
         heading: "紙の控え",
@@ -186,6 +192,39 @@ const supplyTemplates: Array<{ name: string; category: SupplyCategory; quantity:
   { name: "身分証コピー", category: "other", quantity: "家族分" },
   { name: "おむつ・ミルク", category: "baby", quantity: "必要分" },
   { name: "ペット用品", category: "pet", quantity: "必要分" }
+];
+
+const officialInfoLinks = [
+  {
+    title: "避難所・ハザードマップ",
+    source: "国土交通省 ハザードマップポータル",
+    href: "https://disaportal.gsi.go.jp/",
+    note: "自宅や学校、職場周辺の洪水・土砂災害・津波などのリスク確認に使えます。"
+  },
+  {
+    title: "天気・警報注意報",
+    source: "気象庁 天気",
+    href: "https://www.jma.go.jp/bosai/forecast/",
+    note: "最新の天気予報や警報・注意報を確認できます。"
+  },
+  {
+    title: "地震・津波情報",
+    source: "気象庁 地震情報",
+    href: "https://www.jma.go.jp/bosai/map.html#contents=earthquake_map",
+    note: "震度、震源、津波に関する公式情報を確認できます。"
+  },
+  {
+    title: "国の防災情報",
+    source: "内閣府 防災情報",
+    href: "https://www.bousai.go.jp/",
+    note: "災害情報、防災資料、家庭や地域の備えに関する情報を確認できます。"
+  },
+  {
+    title: "防災ブック",
+    source: "東京都 東京防災・東京くらし防災",
+    href: "https://www.bousai.metro.tokyo.lg.jp/1028036/1028197/index.html",
+    note: "家庭で話し合う内容や備蓄、発災時の行動を見直す参考になります。"
+  }
 ];
 
 function formatDate(value: string) {
@@ -331,6 +370,32 @@ export function DisasterNoteApp() {
   );
   const familyStatusSummary =
     data.members.length === 0 ? "家族未登録" : `${data.members.length}人の状況を見る`;
+  const statusSummaryItems: StatusSummaryItem[] = [
+    {
+      id: "safe",
+      label: "無事",
+      count: familyStatusCounts.safe,
+      helper: "安否確認または有事の送信で無事と記録された家族"
+    },
+    {
+      id: "need_help",
+      label: "要支援",
+      count: familyStatusCounts.need_help,
+      helper: "支援が必要として送信された家族"
+    },
+    {
+      id: "unavailable",
+      label: "返信困難",
+      count: familyStatusCounts.unavailable,
+      helper: "本人が返信困難として送信した家族"
+    },
+    {
+      id: "unconfirmed",
+      label: "未確認",
+      count: familyStatusCounts.unconfirmed,
+      helper: "まだ安否ボタンや有事送信が押されていない家族"
+    }
+  ];
   const statusDialogMembers =
     statusDialog === "unconfirmed"
       ? data.members.filter((member) => member.latestStatus === "unavailable" && !member.latestStatusAt)
@@ -837,13 +902,23 @@ export function DisasterNoteApp() {
           <section className="status-panel disaster-home">
             <p className="panel-label">今日の安否ステータス</p>
             <h2>{monthlyTaskDone ? "今月の備え確認は完了しています" : "今月の備え確認をしましょう"}</h2>
-            <div className="metric-grid">
-              <button type="button" onClick={() => setActiveScreen("family")}>
-                <span>家族</span>
+            <div className="home-family-status">
+              <div className="home-family-status-header">
+                <span>家族の状況</span>
                 <strong>{data.members.length}人</strong>
-              </button>
+              </div>
+              <div className="status-summary-list">
+                {statusSummaryItems.map((item) => (
+                  <button type="button" key={item.id} onClick={() => setStatusDialog(item.id)}>
+                    <span>{item.label}</span>
+                    <strong>{item.count}人</strong>
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="metric-grid metric-grid-compact">
               <button type="button" onClick={() => setActiveScreen("settings")}>
-                <span>最終更新</span>
+                <span>備えの確認日</span>
                 <strong>{formatDate(data.lastReviewedAt)}</strong>
               </button>
               <button type="button" onClick={() => setActiveScreen("supplies")}>
@@ -854,12 +929,6 @@ export function DisasterNoteApp() {
                 <span>期限注意</span>
                 <strong>{expiringSupplies.length}件</strong>
               </button>
-            </div>
-            <div className="family-status-strip">
-              <button type="button" onClick={() => setStatusDialog("safe")}>無事 {familyStatusCounts.safe}人</button>
-              <button type="button" onClick={() => setStatusDialog("need_help")}>要支援 {familyStatusCounts.need_help}人</button>
-              <button type="button" onClick={() => setStatusDialog("unavailable")}>返信困難 {familyStatusCounts.unavailable}人</button>
-              <button type="button" onClick={() => setStatusDialog("unconfirmed")}>未確認 {familyStatusCounts.unconfirmed}人</button>
             </div>
             <button type="button" className="checkin-button emergency-launch" onClick={() => setActiveScreen("emergency")}>
               有事の安否共有
@@ -902,12 +971,23 @@ export function DisasterNoteApp() {
         <div className={activeScreen === "family" ? "screen-page is-active" : "screen-page"} hidden={activeScreen !== "family"}>
           <section className="panel compact-panel family-status-panel">
             <p className="panel-label">家族の状況</p>
-            <h2>{familyStatusSummary}</h2>
-            <div className="family-status-strip family-status-strip-light">
-              <button type="button" onClick={() => setStatusDialog("safe")}>無事 {familyStatusCounts.safe}人</button>
-              <button type="button" onClick={() => setStatusDialog("need_help")}>要支援 {familyStatusCounts.need_help}人</button>
-              <button type="button" onClick={() => setStatusDialog("unavailable")}>返信困難 {familyStatusCounts.unavailable}人</button>
-              <button type="button" onClick={() => setStatusDialog("unconfirmed")}>未確認 {familyStatusCounts.unconfirmed}人</button>
+            <h2>誰がどの状況か</h2>
+            <div className="member-status-list">
+              {data.members.map((member) => (
+                <article className="member-status-row" key={member.id}>
+                  <div>
+                    <strong>{member.name}</strong>
+                    <span>{member.relation} / {member.latestStatusAt ? formatDate(member.latestStatusAt) : "まだ記録なし"}</span>
+                  </div>
+                  <button
+                    type="button"
+                    className={`status-pill ${member.latestStatus === "safe" ? "success" : "warning"}`}
+                    onClick={() => setStatusDialog(member.latestStatus === "unavailable" && !member.latestStatusAt ? "unconfirmed" : member.latestStatus)}
+                  >
+                    {getMemberStatusLabel(member)}
+                  </button>
+                </article>
+              ))}
             </div>
             <p className="small-copy">未確認はまだ誰も安否を押していない状態、返信困難は本人が返信困難として送信した状態です。</p>
           </section>
@@ -1020,7 +1100,7 @@ export function DisasterNoteApp() {
                 <p className="panel-label">位置情報</p>
                 <h3>{emergencyLocationEnabled ? "今回だけ共有文に含める" : "共有しない"}</h3>
                 <p>
-                  位置共有は初期OFFです。ONを押した時だけ本人のスマホで現在地を取得し、送信する文面に含めます。
+                  位置共有は初期OFFです。ONを押した時だけ本人のスマホで現在地を取得し、運営サーバーへは送らず、送信する文面にだけ含めます。
                   <button type="button" className="inline-link-button" onClick={() => setActiveScreen("settings")}>詳しい説明</button>
                 </p>
               </div>
@@ -1094,7 +1174,7 @@ export function DisasterNoteApp() {
                 </div>
               </div>
             ) : null}
-            <p className="small-copy">位置情報は常時追跡しません。緊急時または本人が明示的に操作した時だけ共有文に含めます。</p>
+            <p className="small-copy">位置情報は常時追跡しません。本人が明示的に操作した時だけ、この端末上で共有文に含めます。運営サーバーへは送信しません。</p>
             <p className="small-copy">救助や安全を保証するものではありません。必要な場合は公的な窓口や身近な人へ連絡してください。</p>
           </section>
         </div>
@@ -1148,6 +1228,21 @@ export function DisasterNoteApp() {
                 <textarea value={note.body} onChange={(event) => updateMedical(note, event.target.value)} />
               </article>
             ))}
+          </section>
+
+          <section className="panel compact-panel">
+            <p className="panel-label">公的情報</p>
+            <h2>防災・気象リンク</h2>
+            <p className="small-copy">最新情報は公式サイトで確認してください。アプリ内では、家族で確認した内容をノートに残す使い方を想定しています。</p>
+            <div className="official-link-list">
+              {officialInfoLinks.map((link) => (
+                <a className="official-link-card" href={link.href} target="_blank" rel="noreferrer" key={link.href}>
+                  <span>{link.title}</span>
+                  <strong>{link.source}</strong>
+                  <small>{link.note}</small>
+                </a>
+              ))}
+            </div>
           </section>
         </div>
 
@@ -1255,7 +1350,7 @@ export function DisasterNoteApp() {
             </p>
             <p className="small-copy">
               有事画面の位置共有は初期OFFです。本人が「現在地を取得してON」を押した時だけスマホの許可画面が出ます。
-              取得した位置情報は送信前の共有文に入るだけで、送信・コピー・外部共有を行うまでは家族にも運営側にも共有されません。
+              取得した位置情報は本人の端末上で共有文に入るだけで、運営サーバーへは送信・保存しません。本人が共有文を送信・コピー・外部共有するまで、家族にも共有されません。
             </p>
             <label className="check-row">
               <input
