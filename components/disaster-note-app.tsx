@@ -430,6 +430,10 @@ export function DisasterNoteApp() {
       : statusDialog
         ? data.members.filter((member) => member.latestStatus === statusDialog && (statusDialog !== "unavailable" || member.latestStatusAt))
         : [];
+  const getMembersForStatus = (status: StatusDialog) =>
+    status === "unconfirmed"
+      ? data.members.filter((member) => member.latestStatus === "unavailable" && !member.latestStatusAt)
+      : data.members.filter((member) => member.latestStatus === status && (status !== "unavailable" || member.latestStatusAt));
   const statusDialogTitle =
     statusDialog === "safe"
       ? "無事の家族"
@@ -1189,19 +1193,20 @@ export function DisasterNoteApp() {
           </section>
           <section className="panel compact-panel emergency-extra-panel">
             <div className="message-mode">
-              <label className="check-row">
-                <input
-                  type="checkbox"
-                  checked={useCustomEmergencyMessage}
-                  onChange={(event) => {
-                    setUseCustomEmergencyMessage(event.target.checked);
-                    if (!event.target.checked) {
-                      setEmergencyMessage(statusMessages[selectedEmergencyStatus]);
-                    }
-                  }}
-                />
-                <span>送る文面を自分で調整する</span>
-              </label>
+              <button
+                type="button"
+                className="message-toggle-button"
+                onClick={() => {
+                  const next = !useCustomEmergencyMessage;
+                  setUseCustomEmergencyMessage(next);
+                  if (!next) {
+                    setEmergencyMessage(statusMessages[selectedEmergencyStatus]);
+                  }
+                }}
+              >
+                <span>{useCustomEmergencyMessage ? "-" : "+"}</span>
+                送る文面を自分で調整する
+              </button>
             </div>
             {useCustomEmergencyMessage ? (
               <div className="custom-message-box">
@@ -1485,20 +1490,25 @@ export function DisasterNoteApp() {
             <h2>今の状況</h2>
             <div className="status-modal-list">
               {visibleStatusSummaryItems.length > 0 ? (
-                visibleStatusSummaryItems.map((item) => (
-                  <button
-                    type="button"
-                    className="status-overview-row"
-                    key={item.id}
-                    onClick={() => {
-                      setFamilyOverviewOpen(false);
-                      setStatusDialog(item.id);
-                    }}
-                  >
-                    <span>{item.label}</span>
-                    <strong>{item.count}人</strong>
-                  </button>
-                ))
+                visibleStatusSummaryItems.map((item) => {
+                  const members = getMembersForStatus(item.id);
+                  return (
+                    <div className="status-overview-row" key={item.id}>
+                      <div className="status-overview-heading">
+                        <span>{item.label}</span>
+                        <strong>{item.count}人</strong>
+                      </div>
+                      <ul>
+                        {members.map((member) => (
+                          <li key={member.id}>
+                            {member.name}
+                            <span>{member.latestStatusAt ? formatDate(member.latestStatusAt) : "時刻未設定"}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  );
+                })
               ) : (
                 <p>まだ家族の状況記録がありません。</p>
               )}
