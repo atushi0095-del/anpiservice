@@ -101,7 +101,53 @@ async function evaluateSafetyNotifications() {
     }
   }
 
-  return { ok: true, selfReminders, familyAlerts };
+  const monthlyReviewReminders = await evaluateMonthlyReviewReminders();
+  return { ok: true, selfReminders, familyAlerts, monthlyReviewReminders };
+}
+
+const MONTHLY_REVIEW_DAYS = 30;
+const MONTHLY_REVIEW_TEXT = "今月の防災備え確認をしましょう。あんぴノートを開いて「備え確認を完了にする」を押してください。";
+
+async function evaluateMonthlyReviewReminders(): Promise<number> {
+  const db = getAdminDb();
+  const thresholdDate = new Date();
+  thresholdDate.setDate(thresholdDate.getDate() - MONTHLY_REVIEW_DAYS);
+
+  const notesSnapshot = await db.collection("disasterNotes").get();
+  let count = 0;
+
+  for (const noteDoc of notesSnapshot.docs) {
+    const noteData = noteDoc.data() as { lastReviewedAt?: string; notificationSettings?: { monthlyReview?: boolean; syncEnabled?: boolean } };
+    if (!noteData.notificationSettings?.monthlyReview) continue;
+
+    const lastReviewed = noteData.lastReviewedAt ? new Date(noteData.lastReviewedAt) : new Date(0);
+    if (lastReviewed >= thresholdDate) continue;
+
+    const uid = noteDoc.id;
+    const dedupeId = `${uid}_monthly_review_${new Date().toISOString().slice(0, 7)}`;
+    const logRef = db.collection("notificationLogs").doc(dedupeId);
+    if ((await logRef.get()).exists) continue;
+
+    const userDoc = await db.collection("users").doc(uid).get();
+    const user = userDoc.data() as UserProfile | undefined;
+
+    if (user?.pushEnabled && user.pushToken) {
+      try {
+        await getAdminMessaging().send({
+          token: user.pushToken,
+          notification: { title: "あんぴノート", body: MONTHLY_REVIEW_TEXT },
+          data: { type: "monthly_review", openPath: "/" },
+          android: { priority: "normal", notification: { channelId: "anpi_reminders" } }
+        });
+        await logRef.set({ memberId: uid, recipientName: "本人", channel: "push", kind: "monthly_review", status: "sent", message: MONTHLY_REVIEW_TEXT, createdAt: FieldValue.serverTimestamp() });
+        count += 1;
+      } catch {
+        // サイレントフェイル
+      }
+    }
+  }
+
+  return count;
 }
 
 async function queueSelfReminder(memberId: string) {

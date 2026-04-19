@@ -45,5 +45,9 @@ service cloud.firestore {
       allow read: if isSelf(resource.data.memberId) || isActiveFamilyFor(resource.data.memberId);
       allow write: if false;
     }
+
+    match /disasterNotes/{userId} {
+      allow read, write: if isSelf(userId);
+    }
   }
 }

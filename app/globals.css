@@ -187,53 +187,26 @@ main {
 }
 
 .app-screen {
-  min-height: calc(100vh - 210px);
+  overflow-x: hidden;
+}
+
+.screens-track {
+  display: flex;
+  align-items: flex-start;
+  transition: transform 280ms cubic-bezier(0.4, 0, 0.2, 1);
+  will-change: transform;
 }
 
 .screen-page {
+  flex: 0 0 100%;
+  min-width: 0;
   display: grid;
   gap: 14px;
   touch-action: pan-y;
 }
 
-.screen-page.is-active.slide-left {
-  animation: slidePageFromRight 240ms ease both;
-}
-
-.screen-page.is-active.slide-right {
-  animation: slidePageFromLeft 240ms ease both;
-}
-
 .screen-page > :last-child {
   margin-bottom: 112px;
-}
-
-.screen-page[hidden] {
-  display: none;
-}
-
-@keyframes slidePageFromRight {
-  from {
-    opacity: 0.72;
-    transform: translateX(34px);
-  }
-
-  to {
-    opacity: 1;
-    transform: translateX(0);
-  }
-}
-
-@keyframes slidePageFromLeft {
-  from {
-    opacity: 0.72;
-    transform: translateX(-34px);
-  }
-
-  to {
-    opacity: 1;
-    transform: translateX(0);
-  }
 }
 
 .main-checkin {
@@ -1460,6 +1433,40 @@ button {
   background: #bd5247;
   color: white;
   padding: 0 16px;
+}
+
+.cloud-sync-status {
+  display: grid;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.cloud-auth-form {
+  display: grid;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.cloud-auth-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.auth-error {
+  margin: 0;
+  color: var(--coral);
+  font-size: 0.85rem;
+}
+
+.supply-mode-actions {
+  margin: 0 0 8px;
+}
+
+.supply-edit-toggle {
+  background: var(--mint);
+  border-color: var(--teal);
+  color: var(--teal);
 }
 
 .supply-delete-actions {

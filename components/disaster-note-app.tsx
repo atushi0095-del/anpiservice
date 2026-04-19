@@ -14,6 +14,10 @@ import type {
   SupplyCategory,
   SupplyItem
 } from "@/lib/disaster-types";
+import { hasFirebaseConfig, getFirebaseClients } from "@/lib/firebase";
+import { loadDisasterNoteFromCloud, saveDisasterNoteToCloud } from "@/lib/disaster-store";
+import { signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged } from "firebase/auth";
+import type { User } from "firebase/auth";
 
 type AppScreen = "home" | "family" | "emergency" | "note" | "supplies" | "settings";
 type StatusDialog = EmergencyStatus | "unconfirmed";
@@ -309,7 +313,6 @@ function loadLocalData(): DisasterNoteData {
 
 export function DisasterNoteApp() {
   const [activeScreen, setActiveScreen] = useState<AppScreen>("home");
-  const [slideDirection, setSlideDirection] = useState<"left" | "right" | null>(null);
   const [data, setData] = useState<DisasterNoteData>(defaultDisasterNoteData);
   const [ready, setReady] = useState(false);
   const [message, setMessage] = useState("端末に保存して、オフラインでも家族の備えを確認できます。");
@@ -355,16 +358,43 @@ export function DisasterNoteApp() {
   const [reviewOverviewOpen, setReviewOverviewOpen] = useState(false);
   const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
   const [supplyDeleteMode, setSupplyDeleteMode] = useState(false);
+  const [supplyEditMode, setSupplyEditMode] = useState(false);
   const [deferredInstallPrompt, setDeferredInstallPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [installGuideOpen, setInstallGuideOpen] = useState(false);
   const [installingApp, setInstallingApp] = useState(false);
   const [isStandalone, setIsStandalone] = useState(false);
+  const [cloudUser, setCloudUser] = useState<User | null>(null);
+  const [cloudSyncing, setCloudSyncing] = useState(false);
+  const [cloudSyncedAt, setCloudSyncedAt] = useState<string | null>(null);
+  const [authEmail, setAuthEmail] = useState("");
+  const [authPassword, setAuthPassword] = useState("");
+  const [authMode, setAuthMode] = useState<"login" | "register">("login");
+  const [authError, setAuthError] = useState("");
   const touchStartX = useRef<number | null>(null);
 
   useEffect(() => {
-    setData(loadLocalData());
+    const local = loadLocalData();
+    setData(local);
     setPrivacyConsent(window.localStorage.getItem(consentStorageKey) === "true");
     setReady(true);
+
+    if (!hasFirebaseConfig()) return;
+    const { auth } = getFirebaseClients();
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      setCloudUser(user);
+      if (user && local.notificationSettings.syncEnabled) {
+        const cloud = await loadDisasterNoteFromCloud(user.uid);
+        if (cloud) {
+          const localTime = new Date(local.lastReviewedAt || 0).getTime();
+          const cloudTime = new Date(cloud.lastReviewedAt || 0).getTime();
+          if (cloudTime > localTime) {
+            setData(cloud);
+            window.localStorage.setItem(storageKey, JSON.stringify(cloud));
+          }
+        }
+      }
+    });
+    return () => unsubscribe();
   }, []);
 
   useEffect(() => {
@@ -508,6 +538,13 @@ export function DisasterNoteApp() {
   function updateData(next: DisasterNoteData, nextMessage = "保存しました。") {
     setData(next);
     setMessage(nextMessage);
+    if (cloudUser && next.notificationSettings.syncEnabled) {
+      setCloudSyncing(true);
+      saveDisasterNoteToCloud(cloudUser.uid, next).then(() => {
+        setCloudSyncedAt(new Date().toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" }));
+        setCloudSyncing(false);
+      }).catch(() => setCloudSyncing(false));
+    }
   }
 
   function addMember() {
@@ -637,21 +674,17 @@ export function DisasterNoteApp() {
     updateSupply(supply, { quantity: String(next) });
   }
 
-  function switchScreen(nextScreen: AppScreen, direction?: "left" | "right") {
-    if (nextScreen === activeScreen) {
-      return;
+  function switchScreen(nextScreen: AppScreen) {
+    if (nextScreen !== activeScreen) {
+      setActiveScreen(nextScreen);
     }
-
-    setSlideDirection(direction || (screens.findIndex((screen) => screen.id === nextScreen) > screens.findIndex((screen) => screen.id === activeScreen) ? "left" : "right"));
-    setActiveScreen(nextScreen);
-    window.setTimeout(() => setSlideDirection(null), 260);
   }
 
   function moveScreen(delta: number) {
     const index = screens.findIndex((screen) => screen.id === activeScreen);
     const next = screens[index + delta];
     if (next) {
-      switchScreen(next.id, delta > 0 ? "left" : "right");
+      switchScreen(next.id);
     }
   }
 
@@ -678,6 +711,7 @@ export function DisasterNoteApp() {
     window.localStorage.removeItem(storageKey);
     setData(defaultDisasterNoteData);
     setSupplyDeleteMode(false);
+    setSupplyEditMode(false);
     setEditingSupplyId(null);
     setResetConfirmOpen(false);
     setMessage("端末内のデータを初期化しました。");
@@ -945,6 +979,37 @@ export function DisasterNoteApp() {
     window.print();
   }
 
+  async function handleCloudSignIn() {
+    if (!hasFirebaseConfig()) return;
+    setAuthError("");
+    try {
+      const { auth } = getFirebaseClients();
+      if (authMode === "login") {
+        await signInWithEmailAndPassword(auth, authEmail, authPassword);
+      } else {
+        await createUserWithEmailAndPassword(auth, authEmail, authPassword);
+      }
+      setAuthEmail("");
+      setAuthPassword("");
+      setMessage("クラウドアカウントにログインしました。同期を有効にするとデータが自動でバックアップされます。");
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : "エラーが発生しました";
+      setAuthError(msg.includes("wrong-password") || msg.includes("invalid-credential") ? "メールアドレスまたはパスワードが違います。" : msg.includes("email-already-in-use") ? "このメールアドレスはすでに登録済みです。" : "ログインに失敗しました。入力内容を確認してください。");
+    }
+  }
+
+  async function handleCloudSignOut() {
+    if (!hasFirebaseConfig()) return;
+    try {
+      const { auth } = getFirebaseClients();
+      await signOut(auth);
+      setCloudSyncedAt(null);
+      setMessage("ログアウトしました。端末内のデータはそのまま残ります。");
+    } catch {
+      setMessage("ログアウトに失敗しました。");
+    }
+  }
+
   async function handleInstallApp() {
     if (isStandalone) {
       setMessage("すでにホーム画面から起動しています。");
@@ -1063,7 +1128,8 @@ export function DisasterNoteApp() {
       <p className="app-message">{message}</p>
 
       <section className="app-screen" aria-label="安否確認ノート" onTouchStart={handleScreenTouchStart} onTouchEnd={handleScreenTouchEnd}>
-        <div className={activeScreen === "home" ? `screen-page is-active ${slideDirection ? `slide-${slideDirection}` : ""}` : "screen-page"} hidden={activeScreen !== "home"}>
+        <div className="screens-track" style={{ transform: `translateX(${-screens.findIndex((s) => s.id === activeScreen) * 100}%)` }}>
+        <div className="screen-page" aria-hidden={activeScreen !== "home"}>
           <section className={dailyJustChecked ? "status-panel daily-check-panel checkin-complete" : "status-panel daily-check-panel"}>
             <p className="panel-label">日常の安否確認</p>
             <h2>{dailyJustChecked ? "今日の安否確認が完了しました" : "無事を家族に残す"}</h2>
@@ -1146,7 +1212,7 @@ export function DisasterNoteApp() {
           </section>
         </div>
 
-        <div className={activeScreen === "family" ? `screen-page is-active ${slideDirection ? `slide-${slideDirection}` : ""}` : "screen-page"} hidden={activeScreen !== "family"}>
+        <div className="screen-page" aria-hidden={activeScreen !== "family"}>
           <section className="panel compact-panel family-status-panel">
             <p className="panel-label">家族の状況</p>
             <h2>誰がどの状況か</h2>
@@ -1242,7 +1308,7 @@ export function DisasterNoteApp() {
 
         </div>
 
-        <div className={activeScreen === "emergency" ? `screen-page is-active ${slideDirection ? `slide-${slideDirection}` : ""}` : "screen-page"} hidden={activeScreen !== "emergency"}>
+        <div className="screen-page" aria-hidden={activeScreen !== "emergency"}>
           <section className="status-panel emergency-panel">
             <p className="panel-label">緊急モード</p>
             <h2>今の状況を送る</h2>
@@ -1363,7 +1429,7 @@ export function DisasterNoteApp() {
           </section>
         </div>
 
-        <div className={activeScreen === "note" ? `screen-page is-active ${slideDirection ? `slide-${slideDirection}` : ""}` : "screen-page"} hidden={activeScreen !== "note"}>
+        <div className="screen-page" aria-hidden={activeScreen !== "note"}>
           <section className="panel">
             <p className="panel-label">防災ノート</p>
             <h2>避難場所</h2>
@@ -1430,11 +1496,23 @@ export function DisasterNoteApp() {
           </section>
         </div>
 
-        <div className={activeScreen === "supplies" ? `screen-page is-active ${slideDirection ? `slide-${slideDirection}` : ""}` : "screen-page"} hidden={activeScreen !== "supplies"}>
+        <div className="screen-page" aria-hidden={activeScreen !== "supplies"}>
           <section className="panel">
             <p className="panel-label">備蓄チェック</p>
             <h2>持ち出し品と備蓄</h2>
-            <p className="small-copy">品名、分類、数量、期限はあとから編集できます。削除したい時だけ削除選択モードを使います。</p>
+            <div className="supply-mode-actions">
+              <button
+                type="button"
+                className={supplyEditMode ? "secondary-action" : "secondary-action supply-edit-toggle"}
+                onClick={() => {
+                  setSupplyEditMode(!supplyEditMode);
+                  if (supplyEditMode) setEditingSupplyId(null);
+                }}
+              >
+                {supplyEditMode ? "編集を終わる" : "数量・内容を編集する"}
+              </button>
+            </div>
+            <p className="small-copy">{supplyEditMode ? "数量の増減や詳細の編集ができます。削除は右下のボタンから。" : "品名、分類、数量を一覧で確認できます。変更する時は「数量・内容を編集する」をタップ。"}</p>
             <details className="add-details">
               <summary>備蓄品を追加</summary>
               <div className="family-add-form">
@@ -1504,7 +1582,7 @@ export function DisasterNoteApp() {
                         onChange={(event) => updateSupply(item, { checked: event.target.checked })}
                       />
                     ) : null}
-                    {editingSupplyId === item.id ? (
+                    {supplyEditMode && editingSupplyId === item.id ? (
                       <div className="supply-main supply-editor">
                         <input value={item.name} onChange={(event) => updateSupply(item, { name: event.target.value })} aria-label="備蓄品名" />
                         <div className="supply-edit-grid">
@@ -1525,11 +1603,13 @@ export function DisasterNoteApp() {
                         <span>{supplyLabels[item.category]} / 数量 {item.quantity}</span>
                         {item.ownerName ? <small>{item.ownerName}さん用</small> : null}
                         {item.note ? <small>{item.note}</small> : null}
-                        <div className="quantity-actions">
-                          <button type="button" onClick={() => adjustSupplyQuantity(item, -1)}>-1</button>
-                          <button type="button" onClick={() => adjustSupplyQuantity(item, 1)}>+1</button>
-                          <button type="button" onClick={() => setEditingSupplyId(item.id)}>編集</button>
-                        </div>
+                        {supplyEditMode ? (
+                          <div className="quantity-actions">
+                            <button type="button" onClick={() => adjustSupplyQuantity(item, -1)}>-1</button>
+                            <button type="button" onClick={() => adjustSupplyQuantity(item, 1)}>+1</button>
+                            <button type="button" onClick={() => setEditingSupplyId(item.id)}>詳細編集</button>
+                          </div>
+                        ) : null}
                       </div>
                     )}
                     <span className={remaining !== null && remaining <= 30 ? "pill warning" : "pill"}>
@@ -1542,7 +1622,7 @@ export function DisasterNoteApp() {
           </section>
         </div>
 
-        <div className={activeScreen === "settings" ? `screen-page is-active ${slideDirection ? `slide-${slideDirection}` : ""}` : "screen-page"} hidden={activeScreen !== "settings"}>
+        <div className="screen-page" aria-hidden={activeScreen !== "settings"}>
           <section className="panel">
             <p className="panel-label">設定</p>
             <h2>保存と通知</h2>
@@ -1567,12 +1647,52 @@ export function DisasterNoteApp() {
                   updateData({
                     ...data,
                     notificationSettings: { ...data.notificationSettings, syncEnabled: event.target.checked }
-                  }, "クラウド同期はPhase 2で接続します。")
+                  }, event.target.checked ? "クラウド同期を有効にしました。ログイン済みの場合は自動でバックアップされます。" : "クラウド同期をOFFにしました。")
                 }
               />
               <span>クラウド同期を使う</span>
             </label>
-            <p className="small-copy">Phase 1は端末保存が基本です。同期、通知、PDF出力はPhase 2で接続します。</p>
+            <p className="small-copy">端末保存が基本です。クラウド同期を有効にしてログインすると、別の端末でもデータを引き継げます。</p>
+
+            {hasFirebaseConfig() ? (
+              cloudUser ? (
+                <div className="cloud-sync-status">
+                  <p className="small-copy">ログイン中: <strong>{cloudUser.email}</strong>{cloudSyncing ? " · 同期中…" : cloudSyncedAt ? ` · 最終同期 ${cloudSyncedAt}` : ""}</p>
+                  <button type="button" className="secondary-action" onClick={handleCloudSignOut}>ログアウト</button>
+                </div>
+              ) : (
+                <div className="cloud-auth-form">
+                  <p className="small-copy">クラウド同期を使うにはアカウントが必要です。</p>
+                  <input
+                    type="email"
+                    value={authEmail}
+                    onChange={(e) => setAuthEmail(e.target.value)}
+                    placeholder="メールアドレス"
+                    autoComplete="email"
+                  />
+                  <input
+                    type="password"
+                    value={authPassword}
+                    onChange={(e) => setAuthPassword(e.target.value)}
+                    placeholder="パスワード（6文字以上）"
+                    autoComplete={authMode === "register" ? "new-password" : "current-password"}
+                  />
+                  {authError ? <p className="auth-error">{authError}</p> : null}
+                  <div className="cloud-auth-actions">
+                    <button type="button" onClick={handleCloudSignIn}>
+                      {authMode === "login" ? "ログイン" : "新規登録"}
+                    </button>
+                    <button
+                      type="button"
+                      className="secondary-action"
+                      onClick={() => { setAuthMode(authMode === "login" ? "register" : "login"); setAuthError(""); }}
+                    >
+                      {authMode === "login" ? "新規登録はこちら" : "ログインに戻る"}
+                    </button>
+                  </div>
+                </div>
+              )
+            ) : null}
           </section>
 
           <section className="panel compact-panel">
@@ -1610,6 +1730,16 @@ export function DisasterNoteApp() {
           </section>
 
           <section className="panel compact-panel">
+            <p className="panel-label">PDF・印刷</p>
+            <h2>紙の控えを作る</h2>
+            <p>家族情報、緊急連絡先、避難場所、備蓄を1枚にまとめて印刷できます。スマホが使えない時の備えに。</p>
+            <button type="button" className="wide-action" onClick={printSafetyNote}>
+              PDF・印刷で保存
+            </button>
+            <p className="small-copy">iPhoneは「Safari → 共有 → PDFを保存」、Androidは「印刷 → PDFに保存」でPDF化できます。</p>
+          </section>
+
+          <section className="panel compact-panel">
             <p className="panel-label">法務</p>
             <h2>確認事項</h2>
             <div className="legal-links">
@@ -1618,6 +1748,7 @@ export function DisasterNoteApp() {
               <a href="/disclaimer">免責事項</a>
             </div>
           </section>
+        </div>
         </div>
       </section>
 
