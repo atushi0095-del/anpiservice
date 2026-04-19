@@ -205,6 +205,19 @@ main {
   touch-action: pan-y;
 }
 
+.screen-page[aria-hidden="true"] {
+  max-height: 0;
+  overflow: hidden;
+  pointer-events: none;
+  visibility: hidden;
+}
+
+.screen-page[aria-hidden="false"] {
+  max-height: none;
+  overflow: visible;
+  visibility: visible;
+}
+
 .screen-page > :last-child {
   margin-bottom: 112px;
 }
@@ -782,6 +795,10 @@ button {
 }
 
 .watch-trial-card {
+  display: none;
+}
+
+.mutual-watch-card {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 12px;
@@ -792,21 +809,26 @@ button {
   padding: 12px;
 }
 
+.mutual-watch-card h3,
+.mutual-watch-card p,
 .watch-trial-card h3,
 .watch-trial-card p {
   margin: 0;
 }
 
+.mutual-watch-card h3,
 .watch-trial-card h3 {
   font-size: 1.05rem;
 }
 
+.mutual-watch-card p:not(.panel-label),
 .watch-trial-card p:not(.panel-label) {
   color: var(--muted);
   font-size: 0.9rem;
   line-height: 1.5;
 }
 
+.mutual-watch-card a,
 .watch-trial-card a {
   display: inline-flex;
   min-height: 42px;
@@ -1955,10 +1977,12 @@ footer a {
     grid-template-columns: 1fr;
   }
 
+  .mutual-watch-card,
   .watch-trial-card {
     grid-template-columns: 1fr;
   }
 
+  .mutual-watch-card a,
   .watch-trial-card a {
     width: 100%;
   }

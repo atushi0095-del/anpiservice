@@ -1242,6 +1242,14 @@ export function DisasterNoteApp() {
             <p className="small-copy">
               家族を追加したら、招待をLINEやメールで送れます。今は端末内保存が中心のため、自動で同じデータが同期されるのはPhase 2のクラウド同期からです。
             </p>
+            <div className="mutual-watch-card">
+              <div>
+                <p className="panel-label">相互見守り</p>
+                <h3>招待して承認してもらう</h3>
+                <p>家族をメールで招待し、相手が承認すると見守り対象として登録されます。お互いに登録する場合は、双方から招待して承認します。</p>
+              </div>
+              <a href="/watch">相互見守りを開始</a>
+            </div>
             <div className="watch-trial-card">
               <div>
                 <p className="panel-label">検証用</p>
