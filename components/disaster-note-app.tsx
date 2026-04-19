@@ -16,8 +16,10 @@ import type {
 } from "@/lib/disaster-types";
 import { hasFirebaseConfig, getFirebaseClients } from "@/lib/firebase";
 import { loadDisasterNoteFromCloud, saveDisasterNoteToCloud } from "@/lib/disaster-store";
+import { addFamilyContactViaApi, loadFamilyDashboardViaApi, loadMemberDashboardViaApi, saveCheckInViaApi } from "@/lib/api-store";
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged } from "firebase/auth";
 import type { User } from "firebase/auth";
+import type { FamilyWatchTarget, WatchLink } from "@/lib/types";
 
 type AppScreen = "home" | "family" | "emergency" | "note" | "supplies" | "settings";
 type StatusDialog = EmergencyStatus | "unconfirmed";
@@ -41,10 +43,10 @@ type ConsentDoc = {
 const storageKey = "kazoku-bosai-note-v1";
 
 const screens: Array<{ id: AppScreen; label: string }> = [
-  { id: "home", label: "ホーム" },
-  { id: "family", label: "家族" },
-  { id: "emergency", label: "有事" },
-  { id: "note", label: "ノート" },
+  { id: "home", label: "確認" },
+  { id: "family", label: "つながる" },
+  { id: "emergency", label: "災害時" },
+  { id: "note", label: "避難連絡" },
   { id: "supplies", label: "備蓄" },
   { id: "settings", label: "設定" }
 ];
@@ -264,6 +266,10 @@ function createId(prefix: string) {
   return `${prefix}-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
 }
 
+function isValidEmailAddress(value: string) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
+}
+
 function normalizeSupplyItem(item: SupplyItem): SupplyItem {
   if (/^\d+$/.test(item.quantity)) {
     return { ...item, note: item.note || "" };
@@ -370,6 +376,12 @@ export function DisasterNoteApp() {
   const [authPassword, setAuthPassword] = useState("");
   const [authMode, setAuthMode] = useState<"login" | "register">("login");
   const [authError, setAuthError] = useState("");
+  const [watchName, setWatchName] = useState("");
+  const [watchEmail, setWatchEmail] = useState("");
+  const [watchLinks, setWatchLinks] = useState<WatchLink[]>([]);
+  const [watchTargets, setWatchTargets] = useState<FamilyWatchTarget[]>([]);
+  const [watchLoading, setWatchLoading] = useState(false);
+  const [watchAdding, setWatchAdding] = useState(false);
   const touchStartX = useRef<number | null>(null);
 
   useEffect(() => {
@@ -382,6 +394,12 @@ export function DisasterNoteApp() {
     const { auth } = getFirebaseClients();
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       setCloudUser(user);
+      if (!user) {
+        setWatchLinks([]);
+        setWatchTargets([]);
+        return;
+      }
+      refreshWatchConnections(user);
       if (user && local.notificationSettings.syncEnabled) {
         const cloud = await loadDisasterNoteFromCloud(user.uid);
         if (cloud) {
@@ -544,6 +562,80 @@ export function DisasterNoteApp() {
         setCloudSyncedAt(new Date().toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" }));
         setCloudSyncing(false);
       }).catch(() => setCloudSyncing(false));
+    }
+  }
+
+  function createWatchInviteUrl(link: WatchLink) {
+    const configuredOrigin = process.env.NEXT_PUBLIC_APP_ORIGIN?.replace(/\/$/, "");
+    const origin = configuredOrigin || (typeof window !== "undefined" ? window.location.origin : "https://anpinote.vercel.app");
+    return `${origin}/invite/${encodeURIComponent(link.lineLinkCode)}`;
+  }
+
+  async function refreshWatchConnections(user = cloudUser) {
+    if (!user) {
+      return;
+    }
+
+    setWatchLoading(true);
+    try {
+      const [memberDashboard, targets] = await Promise.all([
+        loadMemberDashboardViaApi(user),
+        loadFamilyDashboardViaApi(user)
+      ]);
+      setWatchLinks(memberDashboard.watchLinks);
+      setWatchTargets(targets);
+    } catch {
+      setMessage("相互見守りの情報を読み込めませんでした。通信状態を確認してください。");
+    } finally {
+      setWatchLoading(false);
+    }
+  }
+
+  async function shareWatchInvite(link: WatchLink) {
+    const inviteUrl = createWatchInviteUrl(link);
+    const text = `${link.familyName}さんへ\nあんぴノートでつながる招待です。リンクを開いて承認してください。\n${inviteUrl}`;
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: "あんぴノートでつながる", text, url: inviteUrl });
+        setMessage("招待を共有しました。相手が承認すると見守りに追加されます。");
+        return;
+      } catch {
+        setMessage("共有を中止しました。必要なら招待リンクをコピーして送れます。");
+      }
+    }
+
+    try {
+      await navigator.clipboard.writeText(inviteUrl);
+      setMessage("招待リンクをコピーしました。LINEやメールで送ってください。");
+    } catch {
+      setMessage("招待リンクをコピーできませんでした。");
+    }
+  }
+
+  async function addWatchInvite() {
+    if (!cloudUser) {
+      setMessage("先に設定画面でログインしてください。ログイン後に招待できます。");
+      setActiveScreen("settings");
+      return;
+    }
+
+    if (!watchName.trim() || !isValidEmailAddress(watchEmail)) {
+      setMessage("つながる相手の名前とメールアドレスを入力してください。");
+      return;
+    }
+
+    setWatchAdding(true);
+    try {
+      const link = await addFamilyContactViaApi(cloudUser, watchName.trim(), watchEmail.trim());
+      setWatchLinks((current) => [link, ...current]);
+      setWatchName("");
+      setWatchEmail("");
+      setMessage("招待を作成しました。リンクを送って相手に承認してもらってください。");
+      await shareWatchInvite(link);
+    } catch {
+      setMessage("招待の作成に失敗しました。ログイン状態と通信環境を確認してください。");
+    } finally {
+      setWatchAdding(false);
     }
   }
 
@@ -825,7 +917,7 @@ export function DisasterNoteApp() {
     );
   }
 
-  function recordDailyCheckIn() {
+  async function recordDailyCheckIn() {
     const now = new Date().toISOString();
     const member = data.members[0] || defaultDisasterNoteData.members[0];
     const log: SafetyStatusLog = {
@@ -848,6 +940,21 @@ export function DisasterNoteApp() {
       },
       "今日の安否確認を記録しました。"
     );
+
+    if (cloudUser) {
+      try {
+        await saveCheckInViaApi(cloudUser, {
+          id: `checkin-${Date.now()}`,
+          memberId: cloudUser.uid,
+          checkedAt: now,
+          nextDueAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+          status: "safe"
+        });
+        refreshWatchConnections(cloudUser);
+      } catch {
+        setMessage("端末には記録しましたが、相互見守りへの反映に失敗しました。通信状態を確認してください。");
+      }
+    }
   }
 
   function copyEmergencyText() {
@@ -1244,11 +1351,53 @@ export function DisasterNoteApp() {
             </p>
             <div className="mutual-watch-card">
               <div>
-                <p className="panel-label">相互見守り</p>
-                <h3>招待して承認してもらう</h3>
-                <p>家族をメールで招待し、相手が承認すると見守り対象として登録されます。お互いに登録する場合は、双方から招待して承認します。</p>
+                <p className="panel-label">つながる</p>
+                <h3>家族・グループとつながる</h3>
+                <p>相手に招待リンクを送り、承認されるとお互いの安否確認を見られます。相互に見守る場合は承認画面で「自分も相手に見守ってもらう」を選びます。</p>
               </div>
-              <a href="/watch">相互見守りを開始</a>
+              <button type="button" onClick={() => cloudUser ? refreshWatchConnections(cloudUser) : setActiveScreen("settings")}>
+                {cloudUser ? "更新する" : "ログインする"}
+              </button>
+            </div>
+            <div className="connect-form">
+              <input value={watchName} onChange={(event) => setWatchName(event.target.value)} placeholder="つながる相手の名前" />
+              <input value={watchEmail} onChange={(event) => setWatchEmail(event.target.value)} placeholder="相手のメールアドレス" type="email" />
+              <button type="button" className={watchAdding ? "is-busy" : ""} onClick={addWatchInvite} disabled={watchAdding}>
+                {watchAdding ? "招待作成中..." : "招待してつながる"}
+              </button>
+            </div>
+            <div className="connection-list">
+              {watchLoading ? <p className="small-copy">つながりを確認中です...</p> : null}
+              {watchTargets.length ? (
+                <section className="connection-group">
+                  <h3>見守っている相手</h3>
+                  {watchTargets.map((target) => (
+                    <article className="connection-row" key={target.link.id}>
+                      <div>
+                        <strong>{target.member.displayName}</strong>
+                        <span>{target.latestCheckIn ? `最終確認 ${formatDate(target.latestCheckIn.checkedAt)}` : "まだ確認記録なし"}</span>
+                      </div>
+                      <span className="pill success">承認済み</span>
+                    </article>
+                  ))}
+                </section>
+              ) : null}
+              {watchLinks.length ? (
+                <section className="connection-group">
+                  <h3>招待した相手</h3>
+                  {watchLinks.map((link) => (
+                    <article className="connection-row" key={link.id}>
+                      <div>
+                        <strong>{link.familyName}</strong>
+                        <span>{link.familyEmail}</span>
+                      </div>
+                      <button type="button" className="secondary-action" onClick={() => shareWatchInvite(link)}>
+                        {link.inviteStatus === "accepted" || link.active ? "再共有" : "招待を送る"}
+                      </button>
+                    </article>
+                  ))}
+                </section>
+              ) : null}
             </div>
             <div className="watch-trial-card">
               <div>
