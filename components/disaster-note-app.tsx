@@ -149,6 +149,22 @@ export function DisasterNoteApp() {
   const checkedCount = data.supplyItems.filter((item) => item.checked).length;
   const monthlyTaskDone = new Date(data.lastReviewedAt).getMonth() === new Date().getMonth();
   const latestLog = data.statusLogs[0];
+  const familyStatusCounts = useMemo(
+    () => ({
+      safe: data.members.filter((member) => member.latestStatus === "safe").length,
+      need_help: data.members.filter((member) => member.latestStatus === "need_help").length,
+      unavailable: data.members.filter((member) => member.latestStatus === "unavailable").length
+    }),
+    [data.members]
+  );
+  const familyStatusSummary =
+    data.members.length === 0
+      ? "家族未登録"
+      : familyStatusCounts.need_help > 0
+        ? `要支援 ${familyStatusCounts.need_help}人`
+        : familyStatusCounts.unavailable > 0
+          ? `未確認 ${familyStatusCounts.unavailable}人`
+          : "全員無事";
 
   function updateData(next: DisasterNoteData, nextMessage = "保存しました。") {
     setData(next);
@@ -369,6 +385,14 @@ export function DisasterNoteApp() {
       .catch(() => setMessage(`${statusLabels[status]}を記録しました。画面の文面を手動で送ってください。`));
   }
 
+  function sendEmergencyUpdate() {
+    const messageText = getEmergencyMessage(selectedEmergencyStatus);
+    recordEmergencyStatus(selectedEmergencyStatus, messageText);
+    setMessage(
+      `${statusLabels[selectedEmergencyStatus]}をアプリ内に送信しました。家族状況と最新の共有に反映しました。クラウド同期前は、この端末内の記録として保存されます。`
+    );
+  }
+
   function shareFamilyInvite(member?: HouseholdMember) {
     const targetName = member?.name ? `${member.name}さん` : "家族";
     const origin = typeof window !== "undefined" ? window.location.origin : "https://anpinote.vercel.app";
@@ -509,8 +533,8 @@ export function DisasterNoteApp() {
             <h2>{monthlyTaskDone ? "今月の家族確認は完了しています" : "今月の家族確認があります"}</h2>
             <div className="metric-grid">
               <div>
-                <span>家族</span>
-                <strong>{data.members.length}人</strong>
+                <span>家族状況</span>
+                <strong>{familyStatusSummary}</strong>
               </div>
               <div>
                 <span>最終更新</span>
@@ -524,6 +548,11 @@ export function DisasterNoteApp() {
                 <span>期限注意</span>
                 <strong>{expiringSupplies.length}件</strong>
               </div>
+            </div>
+            <div className="family-status-strip">
+              <span>無事 {familyStatusCounts.safe}人</span>
+              <span>要支援 {familyStatusCounts.need_help}人</span>
+              <span>未確認 {familyStatusCounts.unavailable}人</span>
             </div>
             <button type="button" className="checkin-button emergency-launch" onClick={() => setActiveScreen("emergency")}>
               有事の安否共有
@@ -612,6 +641,22 @@ export function DisasterNoteApp() {
               </div>
             ))}
           </section>
+
+          <section className="panel compact-panel">
+            <p className="panel-label">家族の状況</p>
+            <h2>{familyStatusSummary}</h2>
+            <div className="family-status-strip family-status-strip-light">
+              <span>無事 {familyStatusCounts.safe}人</span>
+              <span>要支援 {familyStatusCounts.need_help}人</span>
+              <span>未確認 {familyStatusCounts.unavailable}人</span>
+            </div>
+            {data.members.map((member) => (
+              <div className="setting-line" key={member.id}>
+                <span>{member.name}</span>
+                <strong>{statusLabels[member.latestStatus]}</strong>
+              </div>
+            ))}
+          </section>
         </div>
 
         <div className={activeScreen === "emergency" ? "screen-page is-active" : "screen-page"} hidden={activeScreen !== "emergency"}>
@@ -619,73 +664,36 @@ export function DisasterNoteApp() {
             <p className="panel-label">緊急モード</p>
             <h2>今の状況と送る文面</h2>
             <p className="small-copy">
-              文面を確認し、必要なら調整してから下の3つのボタンを押してください。押すと状態を記録し、そのまま共有画面を開きます。
+              まず状況を選び、位置情報を含めるか決めてから送信します。送信後、家族状況と最新の共有に反映されます。
             </p>
             <div className="emergency-actions">
               <button
                 type="button"
-                className={lastEmergencyStatus === "safe" ? "is-selected" : ""}
-                onClick={() => shareEmergencyText("safe")}
+                className={selectedEmergencyStatus === "safe" ? "is-selected" : ""}
+                onClick={() => chooseEmergencyStatus("safe")}
               >
                 無事
               </button>
               <button
                 type="button"
-                className={`warning-action ${lastEmergencyStatus === "need_help" ? "is-selected" : ""}`}
-                onClick={() => shareEmergencyText("need_help")}
+                className={`warning-action ${selectedEmergencyStatus === "need_help" ? "is-selected" : ""}`}
+                onClick={() => chooseEmergencyStatus("need_help")}
               >
                 要支援
               </button>
               <button
                 type="button"
-                className={`quiet-action ${lastEmergencyStatus === "unavailable" ? "is-selected" : ""}`}
-                onClick={() => shareEmergencyText("unavailable")}
+                className={`quiet-action ${selectedEmergencyStatus === "unavailable" ? "is-selected" : ""}`}
+                onClick={() => chooseEmergencyStatus("unavailable")}
               >
                 返信困難
               </button>
             </div>
             <p className="emergency-confirmation">
-              {lastEmergencyStatus ? `${statusLabels[lastEmergencyStatus]}を記録済みです。必要なら共有文をコピーして送れます。` : "上のボタンで、記録と共有をまとめて行います。"}
+              {lastEmergencyStatus
+                ? `${statusLabels[lastEmergencyStatus]}を送信済みです。必要ならもう一度送信できます。`
+                : `${statusLabels[selectedEmergencyStatus]}の文面を準備しています。`}
             </p>
-            <div className="message-mode">
-              <label className="check-row">
-                <input
-                  type="checkbox"
-                  checked={useCustomEmergencyMessage}
-                  onChange={(event) => {
-                    setUseCustomEmergencyMessage(event.target.checked);
-                    if (!event.target.checked) {
-                      setEmergencyMessage(statusMessages[selectedEmergencyStatus]);
-                    }
-                  }}
-                />
-                <span>送る文面を自分で調整する</span>
-              </label>
-            </div>
-            {useCustomEmergencyMessage ? (
-              <div className="custom-message-box">
-                <label className="field-label" htmlFor="emergency-template">送る文面</label>
-                <select id="emergency-template" value={emergencyMessage} onChange={(event) => setEmergencyMessage(event.target.value)}>
-                  {Array.from(new Set([...Object.values(statusMessages), ...data.templateMessages])).map((template) => (
-                    <option key={template} value={template}>{template}</option>
-                  ))}
-                </select>
-                <textarea value={emergencyMessage} onChange={(event) => setEmergencyMessage(event.target.value)} />
-                <div className="template-add-form">
-                  <input
-                    value={newTemplateMessage}
-                    onChange={(event) => setNewTemplateMessage(event.target.value)}
-                    placeholder="よく使う文面を追加"
-                  />
-                  <button type="button" onClick={addTemplateMessage}>追加</button>
-                </div>
-              </div>
-            ) : (
-              <div className="auto-message-preview">
-                <span>自動で使う文面</span>
-                <strong>{statusMessages[selectedEmergencyStatus]}</strong>
-              </div>
-            )}
             <div className="location-share-card">
               <div>
                 <p className="panel-label">位置情報</p>
@@ -726,22 +734,55 @@ export function DisasterNoteApp() {
                 ) : null}
               </div>
             ) : null}
-            <p className="small-copy">位置情報は常時追跡しません。緊急時または本人が明示的に操作した時だけ共有文に含めます。</p>
+            <div className="auto-message-preview">
+              <span>送信される内容</span>
+              <strong>{buildEmergencyShareText(selectedEmergencyStatus, getEmergencyMessage(selectedEmergencyStatus))}</strong>
+            </div>
             <div className="message-actions">
+              <button type="button" className="wide-action" onClick={sendEmergencyUpdate}>
+                アプリ内に送信する
+              </button>
+              <button type="button" className="secondary-action" onClick={() => shareEmergencyText(selectedEmergencyStatus)}>
+                LINE・メールでも送る
+              </button>
               <button type="button" className="secondary-action" onClick={copyEmergencyText}>共有文をコピー</button>
             </div>
-            <p className="small-copy">救助や安全を保証するものではありません。必要な場合は公的な窓口や身近な人へ連絡してください。</p>
-          </section>
-
-          <section className="panel compact-panel">
-            <p className="panel-label">家族状況</p>
-            <h2>最新状態</h2>
-            {data.members.map((member) => (
-              <div className="setting-line" key={member.id}>
-                <span>{member.name}</span>
-                <strong>{statusLabels[member.latestStatus]}</strong>
+            <div className="message-mode">
+              <label className="check-row">
+                <input
+                  type="checkbox"
+                  checked={useCustomEmergencyMessage}
+                  onChange={(event) => {
+                    setUseCustomEmergencyMessage(event.target.checked);
+                    if (!event.target.checked) {
+                      setEmergencyMessage(statusMessages[selectedEmergencyStatus]);
+                    }
+                  }}
+                />
+                <span>送る文面を自分で調整する</span>
+              </label>
+            </div>
+            {useCustomEmergencyMessage ? (
+              <div className="custom-message-box">
+                <label className="field-label" htmlFor="emergency-template">送る文面</label>
+                <select id="emergency-template" value={emergencyMessage} onChange={(event) => setEmergencyMessage(event.target.value)}>
+                  {Array.from(new Set([...Object.values(statusMessages), ...data.templateMessages])).map((template) => (
+                    <option key={template} value={template}>{template}</option>
+                  ))}
+                </select>
+                <textarea value={emergencyMessage} onChange={(event) => setEmergencyMessage(event.target.value)} />
+                <div className="template-add-form">
+                  <input
+                    value={newTemplateMessage}
+                    onChange={(event) => setNewTemplateMessage(event.target.value)}
+                    placeholder="よく使う文面を追加"
+                  />
+                  <button type="button" onClick={addTemplateMessage}>追加</button>
+                </div>
               </div>
-            ))}
+            ) : null}
+            <p className="small-copy">位置情報は常時追跡しません。緊急時または本人が明示的に操作した時だけ共有文に含めます。</p>
+            <p className="small-copy">救助や安全を保証するものではありません。必要な場合は公的な窓口や身近な人へ連絡してください。</p>
           </section>
         </div>
 

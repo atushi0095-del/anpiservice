@@ -735,6 +735,31 @@ button {
   font-size: 1.2rem;
 }
 
+.family-status-strip {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.family-status-strip span {
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.14);
+  color: white;
+  padding: 10px 8px;
+  text-align: center;
+  font-size: 0.86rem;
+  font-weight: 700;
+}
+
+.family-status-strip-light {
+  margin-bottom: 12px;
+}
+
+.family-status-strip-light span {
+  background: #f1f7f5;
+  color: var(--teal);
+}
+
 .emergency-launch {
   margin-top: 8px;
 }
@@ -818,6 +843,7 @@ button {
 .auto-message-preview strong {
   color: white;
   line-height: 1.65;
+  white-space: pre-line;
 }
 
 .location-share-card {
