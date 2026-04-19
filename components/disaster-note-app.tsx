@@ -1321,7 +1321,10 @@ export function DisasterNoteApp() {
               </button>
             </div>
             <button type="button" className="checkin-button emergency-launch" onClick={() => setActiveScreen("emergency")}>
-              有事の安否共有
+              災害時モード
+            </button>
+            <button type="button" className="settings-shortcut" onClick={() => setActiveScreen("settings")}>
+              設定・その他
             </button>
           </section>
 
@@ -1517,6 +1520,11 @@ export function DisasterNoteApp() {
         </div>
 
         <div className="screen-page" aria-hidden={activeScreen !== "emergency"}>
+          <div className="emergency-back-row">
+            <button type="button" className="back-to-home" onClick={() => setActiveScreen("home")}>
+              ← 通常に戻る
+            </button>
+          </div>
           <section className="status-panel emergency-panel">
             <p className="panel-label">緊急モード</p>
             <h2>今の状況を送る</h2>
@@ -2162,7 +2170,7 @@ export function DisasterNoteApp() {
       ) : null}
 
       <nav className="bottom-nav disaster-nav" aria-label="画面切り替え">
-        {screens.map((screen) => (
+        {screens.filter((s) => s.id !== "emergency" && s.id !== "settings").map((screen) => (
           <button
             key={screen.id}
             type="button"

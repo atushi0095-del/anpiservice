@@ -340,7 +340,7 @@ main {
 }
 
 .bottom-nav.disaster-nav {
-  grid-template-columns: repeat(6, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
 .bottom-nav button {
@@ -1168,6 +1168,43 @@ button {
 
 .emergency-launch {
   margin-top: 8px;
+  background: #7f3440;
+  color: #fff;
+}
+
+.emergency-launch:hover {
+  background: #9c3f4f;
+}
+
+.settings-shortcut {
+  margin-top: 4px;
+  background: transparent;
+  border: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 0.85rem;
+  padding: 8px 16px;
+  border-radius: 8px;
+}
+
+.settings-shortcut:hover {
+  background: var(--bg-surface);
+}
+
+.emergency-back-row {
+  padding-bottom: 4px;
+}
+
+.back-to-home {
+  background: transparent;
+  border: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 0.85rem;
+  padding: 6px 14px;
+  border-radius: 8px;
+}
+
+.back-to-home:hover {
+  background: var(--bg-surface);
 }
 
 .emergency-panel {
