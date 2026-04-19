@@ -775,6 +775,46 @@ button {
   margin: 10px 0 16px;
 }
 
+.watch-trial-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #f1f7f5;
+  padding: 12px;
+}
+
+.watch-trial-card h3,
+.watch-trial-card p {
+  margin: 0;
+}
+
+.watch-trial-card h3 {
+  font-size: 1.05rem;
+}
+
+.watch-trial-card p:not(.panel-label) {
+  color: var(--muted);
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.watch-trial-card a {
+  display: inline-flex;
+  min-height: 42px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  background: var(--teal);
+  color: white;
+  padding: 0 14px;
+  font-weight: 800;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
 .disaster-home {
   min-height: 420px;
   gap: 16px;
@@ -1628,6 +1668,35 @@ button {
   white-space: nowrap;
 }
 
+.install-guide-list {
+  display: grid;
+  gap: 10px;
+  margin: 10px 0 14px;
+}
+
+.install-guide-list section {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fbfdfc;
+  padding: 12px;
+}
+
+.install-guide-list h3,
+.install-guide-list p {
+  margin: 0;
+}
+
+.install-guide-list h3 {
+  color: var(--teal);
+  font-size: 1rem;
+}
+
+.install-guide-list p {
+  margin-top: 4px;
+  color: var(--muted);
+  line-height: 1.55;
+}
+
 .family-item .line-code {
   width: fit-content;
   margin: 10px 0 0;
@@ -1824,6 +1893,14 @@ footer a {
 
   .push-registration {
     grid-template-columns: 1fr;
+  }
+
+  .watch-trial-card {
+    grid-template-columns: 1fr;
+  }
+
+  .watch-trial-card a {
+    width: 100%;
   }
 
   .supply-edit-grid,

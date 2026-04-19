@@ -146,6 +146,7 @@ export function SafetyApp() {
   const [checkInFeedback, setCheckInFeedback] = useState(false);
   const [activeScreen, setActiveScreen] = useState<AppScreen>("checkin");
   const [deferredInstallPrompt, setDeferredInstallPrompt] = useState<BeforeInstallPromptEvent | null>(null);
+  const [installGuideOpen, setInstallGuideOpen] = useState(false);
   const [authAction, setAuthAction] = useState<"signin" | "signup" | "signout" | null>(null);
   const [familyAdding, setFamilyAdding] = useState(false);
   const [frequencySaving, setFrequencySaving] = useState<CheckInFrequencyDays | null>(null);
@@ -184,8 +185,19 @@ export function SafetyApp() {
       setDeferredInstallPrompt(event as BeforeInstallPromptEvent);
     }
 
+    function handleAppInstalled() {
+      setIsStandalone(true);
+      setDeferredInstallPrompt(null);
+      setInstallGuideOpen(false);
+      setMessage("ホーム画面に追加されました。次回からアイコンで開けます。");
+    }
+
     window.addEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
-    return () => window.removeEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
+    window.addEventListener("appinstalled", handleAppInstalled);
+    return () => {
+      window.removeEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
+      window.removeEventListener("appinstalled", handleAppInstalled);
+    };
   }, []);
 
   useEffect(() => {
@@ -338,6 +350,7 @@ export function SafetyApp() {
       setFamilyTargets([]);
       setLogs(demoNotificationLogs);
     } catch (error) {
+      setInstallGuideOpen(true);
       setMessage(toAppErrorMessage(error));
     } finally {
       setAuthAction(null);
@@ -504,7 +517,13 @@ export function SafetyApp() {
   async function handleInstallApp() {
     setInstallingApp(true);
     try {
+      if (isStandalone) {
+        setMessage("すでにホーム画面から開ける状態です。");
+        return;
+      }
+
       if (!deferredInstallPrompt) {
+        setInstallGuideOpen(true);
         setMessage("ブラウザの共有メニューから「ホーム画面に追加」を選ぶと、アプリのように開けます。");
         return;
       }
@@ -774,6 +793,32 @@ export function SafetyApp() {
           </button>
         ))}
       </nav>
+
+      {installGuideOpen ? (
+        <div className="status-modal-backdrop" role="presentation" onClick={() => setInstallGuideOpen(false)}>
+          <section className="status-modal" role="dialog" aria-modal="true" aria-label="アプリ追加の手順" onClick={(event) => event.stopPropagation()}>
+            <p className="panel-label">アプリ追加</p>
+            <h2>ホーム画面に追加する</h2>
+            <div className="install-guide-list">
+              <section>
+                <h3>Android Chrome</h3>
+                <p>右上の「︙」を押し、「ホーム画面に追加」または「アプリをインストール」を選びます。</p>
+              </section>
+              <section>
+                <h3>iPhone Safari</h3>
+                <p>下の共有ボタンを押し、「ホーム画面に追加」を選びます。</p>
+              </section>
+              <section>
+                <h3>すでに追加済みの場合</h3>
+                <p>ホーム画面の「あんぴノート」アイコンから開いてください。</p>
+              </section>
+            </div>
+            <button type="button" className="wide-action" onClick={() => setInstallGuideOpen(false)}>
+              閉じる
+            </button>
+          </section>
+        </div>
+      ) : null}
 
       <footer>
         <a href="/terms">利用規約</a>

@@ -17,6 +17,10 @@ import type {
 
 type AppScreen = "home" | "family" | "emergency" | "note" | "supplies" | "settings";
 type StatusDialog = EmergencyStatus | "unconfirmed";
+type BeforeInstallPromptEvent = Event & {
+  prompt: () => Promise<void>;
+  userChoice: Promise<{ outcome: "accepted" | "dismissed"; platform: string }>;
+};
 type StatusSummaryItem = {
   id: StatusDialog;
   label: string;
@@ -346,6 +350,10 @@ export function DisasterNoteApp() {
   const [familyOverviewOpen, setFamilyOverviewOpen] = useState(false);
   const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
   const [supplyDeleteMode, setSupplyDeleteMode] = useState(false);
+  const [deferredInstallPrompt, setDeferredInstallPrompt] = useState<BeforeInstallPromptEvent | null>(null);
+  const [installGuideOpen, setInstallGuideOpen] = useState(false);
+  const [installingApp, setInstallingApp] = useState(false);
+  const [isStandalone, setIsStandalone] = useState(false);
 
   useEffect(() => {
     setData(loadLocalData());
@@ -365,6 +373,30 @@ export function DisasterNoteApp() {
     if ("serviceWorker" in navigator) {
       navigator.serviceWorker.register("/sw.js").catch(() => undefined);
     }
+  }, []);
+
+  useEffect(() => {
+    const standaloneNavigator = navigator as Navigator & { standalone?: boolean };
+    setIsStandalone(window.matchMedia("(display-mode: standalone)").matches || Boolean(standaloneNavigator.standalone));
+
+    function handleBeforeInstallPrompt(event: Event) {
+      event.preventDefault();
+      setDeferredInstallPrompt(event as BeforeInstallPromptEvent);
+    }
+
+    function handleAppInstalled() {
+      setIsStandalone(true);
+      setInstallGuideOpen(false);
+      setDeferredInstallPrompt(null);
+      setMessage("ホーム画面に追加しました。");
+    }
+
+    window.addEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
+    window.addEventListener("appinstalled", handleAppInstalled);
+    return () => {
+      window.removeEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
+      window.removeEventListener("appinstalled", handleAppInstalled);
+    };
   }, []);
 
   useEffect(() => {
@@ -851,6 +883,35 @@ export function DisasterNoteApp() {
     window.print();
   }
 
+  async function handleInstallApp() {
+    if (isStandalone) {
+      setMessage("すでにホーム画面から起動しています。");
+      return;
+    }
+
+    setInstallingApp(true);
+    try {
+      if (deferredInstallPrompt) {
+        await deferredInstallPrompt.prompt();
+        const choice = await deferredInstallPrompt.userChoice;
+        setDeferredInstallPrompt(null);
+        setMessage(choice.outcome === "accepted" ? "ホーム画面に追加しました。" : "ホーム画面追加をキャンセルしました。");
+        if (choice.outcome === "dismissed") {
+          setInstallGuideOpen(true);
+        }
+        return;
+      }
+
+      setInstallGuideOpen(true);
+      setMessage("このブラウザでは追加画面を自動表示できません。手順を表示しました。");
+    } catch {
+      setInstallGuideOpen(true);
+      setMessage("追加画面を開けませんでした。手順を表示しました。");
+    } finally {
+      setInstallingApp(false);
+    }
+  }
+
   if (!ready) {
     return (
       <main className="phone-app disaster-app">
@@ -932,8 +993,8 @@ export function DisasterNoteApp() {
             <h1>安否確認ノート</h1>
           </div>
         </div>
-        <button type="button" className="install-button" onClick={() => setMessage("ブラウザの共有メニューからホーム画面に追加できます。")}>
-          アプリ追加
+        <button type="button" className={installingApp ? "install-button is-busy" : "install-button"} onClick={handleInstallApp} disabled={installingApp || isStandalone}>
+          {isStandalone ? "追加済み" : installingApp ? "処理中" : "アプリ追加"}
         </button>
       </header>
 
@@ -1053,6 +1114,14 @@ export function DisasterNoteApp() {
             <p className="small-copy">
               家族を追加したら、招待をLINEやメールで送れます。今は端末内保存が中心のため、自動で同じデータが同期されるのはPhase 2のクラウド同期からです。
             </p>
+            <div className="watch-trial-card">
+              <div>
+                <p className="panel-label">検証用</p>
+                <h3>相互見守りを試す</h3>
+                <p>メール登録、家族招待、承認、見守り対象一覧の流れをFirebase側で確認できます。</p>
+              </div>
+              <a href="/watch">開く</a>
+            </div>
             <button type="button" className="wide-action family-share-action" onClick={() => shareFamilyInvite()}>
               家族へ招待を送る
             </button>
@@ -1580,6 +1649,32 @@ export function DisasterNoteApp() {
             </button>
             <button type="button" className="wide-action" onClick={() => setResetConfirmOpen(false)}>
               キャンセル
+            </button>
+          </section>
+        </div>
+      ) : null}
+
+      {installGuideOpen ? (
+        <div className="status-modal-backdrop" role="presentation" onClick={() => setInstallGuideOpen(false)}>
+          <section className="status-modal" role="dialog" aria-modal="true" aria-label="アプリ追加の手順" onClick={(event) => event.stopPropagation()}>
+            <p className="panel-label">アプリ追加</p>
+            <h2>ホーム画面に追加する</h2>
+            <div className="install-guide-list">
+              <section>
+                <h3>Android Chrome</h3>
+                <p>右上の「︙」を押し、「ホーム画面に追加」または「アプリをインストール」を選びます。</p>
+              </section>
+              <section>
+                <h3>iPhone Safari</h3>
+                <p>下の共有ボタンを押し、「ホーム画面に追加」を選びます。</p>
+              </section>
+              <section>
+                <h3>すでに追加済みの場合</h3>
+                <p>ホーム画面の「あんぴノート」アイコンから起動してください。</p>
+              </section>
+            </div>
+            <button type="button" className="wide-action" onClick={() => setInstallGuideOpen(false)}>
+              閉じる
             </button>
           </section>
         </div>

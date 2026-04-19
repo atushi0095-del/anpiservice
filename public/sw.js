@@ -1,5 +1,5 @@
-const CACHE_NAME = "anpi-note-v2";
-const APP_SHELL = ["/", "/terms", "/privacy", "/disclaimer", "/icon.svg"];
+const CACHE_NAME = "anpi-note-v3";
+const APP_SHELL = ["/", "/watch", "/terms", "/privacy", "/disclaimer", "/icon.svg"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(APP_SHELL)));
