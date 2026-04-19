@@ -193,6 +193,7 @@ main {
 .screen-page {
   display: grid;
   gap: 14px;
+  touch-action: pan-y;
 }
 
 .screen-page > :last-child {
@@ -1472,6 +1473,26 @@ button {
 
 .family-status-panel {
   padding-bottom: 20px;
+}
+
+.family-status-panel > .small-copy {
+  display: none;
+}
+
+.contact-group-list {
+  display: grid;
+  gap: 12px;
+}
+
+.contact-group {
+  display: grid;
+  gap: 8px;
+}
+
+.contact-group h3 {
+  margin: 0;
+  color: var(--teal);
+  font-size: 0.95rem;
 }
 
 .member-status-list {

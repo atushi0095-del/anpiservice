@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { UIEvent } from "react";
+import type { TouchEvent, UIEvent } from "react";
 import { defaultDisasterNoteData } from "@/lib/disaster-demo-data";
 import type {
   DisasterNoteData,
@@ -321,6 +321,7 @@ export function DisasterNoteApp() {
   const [newSupplyName, setNewSupplyName] = useState("");
   const [newSupplyCategory, setNewSupplyCategory] = useState<SupplyCategory>("food");
   const [newSupplyQuantity, setNewSupplyQuantity] = useState("");
+  const [newSupplyOwnerName, setNewSupplyOwnerName] = useState("");
   const [newSupplyNote, setNewSupplyNote] = useState("");
   const [newSupplyExpiresAt, setNewSupplyExpiresAt] = useState("");
   const [selectedSupplyTemplate, setSelectedSupplyTemplate] = useState("");
@@ -348,12 +349,16 @@ export function DisasterNoteApp() {
   const [consentScrolledToEnd, setConsentScrolledToEnd] = useState(false);
   const [statusDialog, setStatusDialog] = useState<StatusDialog | null>(null);
   const [familyOverviewOpen, setFamilyOverviewOpen] = useState(false);
+  const [supplyOverviewOpen, setSupplyOverviewOpen] = useState(false);
+  const [expiryOverviewOpen, setExpiryOverviewOpen] = useState(false);
+  const [reviewOverviewOpen, setReviewOverviewOpen] = useState(false);
   const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
   const [supplyDeleteMode, setSupplyDeleteMode] = useState(false);
   const [deferredInstallPrompt, setDeferredInstallPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [installGuideOpen, setInstallGuideOpen] = useState(false);
   const [installingApp, setInstallingApp] = useState(false);
   const [isStandalone, setIsStandalone] = useState(false);
+  const touchStartX = useRef<number | null>(null);
 
   useEffect(() => {
     setData(loadLocalData());
@@ -418,6 +423,14 @@ export function DisasterNoteApp() {
   const monthlyTaskDone = new Date(data.lastReviewedAt).getMonth() === new Date().getMonth();
   const latestLog = data.statusLogs[0];
   const selectedSupplyCount = data.supplyItems.filter((item) => item.checked).length;
+  const supplyByOwner = useMemo(() => {
+    const groups = new Map<string, SupplyItem[]>();
+    data.supplyItems.forEach((item) => {
+      const owner = item.ownerName?.trim() || "共通";
+      groups.set(owner, [...(groups.get(owner) || []), item]);
+    });
+    return Array.from(groups.entries()).map(([owner, items]) => ({ owner, items }));
+  }, [data.supplyItems]);
   const familyStatusCounts = useMemo(
     () => ({
       safe: data.members.filter((member) => member.latestStatus === "safe").length,
@@ -456,6 +469,14 @@ export function DisasterNoteApp() {
     }
   ];
   const visibleStatusSummaryItems = statusSummaryItems.filter((item) => item.count > 0);
+  const contactGroups = useMemo(() => {
+    const groups = new Map<string, EmergencyContact[]>();
+    data.emergencyContacts.forEach((contact) => {
+      const label = contact.label.trim() || "連絡先";
+      groups.set(label, [...(groups.get(label) || []), contact]);
+    });
+    return Array.from(groups.entries()).map(([label, contacts]) => ({ label, contacts }));
+  }, [data.emergencyContacts]);
   const statusDialogMembers =
     statusDialog === "unconfirmed"
       ? data.members.filter((member) => member.latestStatus === "unavailable" && !member.latestStatusAt)
@@ -552,6 +573,7 @@ export function DisasterNoteApp() {
       name: newSupplyName.trim(),
       category: newSupplyCategory,
       quantity: newSupplyQuantity.trim().replace(/\D/g, "") || "1",
+      ownerName: newSupplyOwnerName.trim(),
       note: newSupplyNote.trim(),
       expiresAt: newSupplyExpiresAt,
       checked: false
@@ -559,6 +581,7 @@ export function DisasterNoteApp() {
     updateData({ ...data, supplyItems: [supply, ...data.supplyItems] }, "備蓄品を追加しました。");
     setNewSupplyName("");
     setNewSupplyQuantity("");
+    setNewSupplyOwnerName("");
     setNewSupplyNote("");
     setNewSupplyExpiresAt("");
     setSelectedSupplyTemplate("");
@@ -574,6 +597,7 @@ export function DisasterNoteApp() {
     setNewSupplyName(template.name);
     setNewSupplyCategory(template.category);
     setNewSupplyQuantity(template.quantity);
+    setNewSupplyOwnerName("");
     setNewSupplyNote(template.note);
   }
 
@@ -610,6 +634,33 @@ export function DisasterNoteApp() {
     const current = Number(supply.quantity) || 0;
     const next = Math.max(0, current + delta);
     updateSupply(supply, { quantity: String(next) });
+  }
+
+  function moveScreen(delta: number) {
+    const index = screens.findIndex((screen) => screen.id === activeScreen);
+    const next = screens[index + delta];
+    if (next) {
+      setActiveScreen(next.id);
+    }
+  }
+
+  function handleScreenTouchStart(event: TouchEvent<HTMLElement>) {
+    touchStartX.current = event.touches[0]?.clientX ?? null;
+  }
+
+  function handleScreenTouchEnd(event: TouchEvent<HTMLElement>) {
+    if (touchStartX.current === null) {
+      return;
+    }
+
+    const endX = event.changedTouches[0]?.clientX ?? touchStartX.current;
+    const diff = endX - touchStartX.current;
+    touchStartX.current = null;
+    if (Math.abs(diff) < 70) {
+      return;
+    }
+
+    moveScreen(diff < 0 ? 1 : -1);
   }
 
   function resetLocalData() {
@@ -1000,7 +1051,7 @@ export function DisasterNoteApp() {
 
       <p className="app-message">{message}</p>
 
-      <section className="app-screen" aria-label="安否確認ノート">
+      <section className="app-screen" aria-label="安否確認ノート" onTouchStart={handleScreenTouchStart} onTouchEnd={handleScreenTouchEnd}>
         <div className={activeScreen === "home" ? "screen-page is-active" : "screen-page"} hidden={activeScreen !== "home"}>
           <section className={dailyJustChecked ? "status-panel daily-check-panel checkin-complete" : "status-panel daily-check-panel"}>
             <p className="panel-label">日常の安否確認</p>
@@ -1033,15 +1084,15 @@ export function DisasterNoteApp() {
                   )}
                 </ul>
               </button>
-              <button type="button" onClick={() => setActiveScreen("settings")}>
+              <button type="button" onClick={() => setReviewOverviewOpen(true)}>
                 <span>備えの確認日</span>
                 <strong>{formatDate(data.lastReviewedAt)}</strong>
               </button>
-              <button type="button" onClick={() => setActiveScreen("supplies")}>
+              <button type="button" onClick={() => setSupplyOverviewOpen(true)}>
                 <span>備蓄</span>
                 <strong>{data.supplyItems.length}件</strong>
               </button>
-              <button type="button" onClick={() => setActiveScreen("supplies")}>
+              <button type="button" onClick={() => setExpiryOverviewOpen(true)}>
                 <span>期限注意</span>
                 <strong>{expiringSupplies.length}件</strong>
               </button>
@@ -1376,6 +1427,12 @@ export function DisasterNoteApp() {
             <details className="add-details">
               <summary>備蓄品を追加</summary>
               <div className="family-add-form">
+                <select value={newSupplyOwnerName} onChange={(event) => setNewSupplyOwnerName(event.target.value)}>
+                  <option value="">共通</option>
+                  {data.members.map((member) => (
+                    <option key={member.id} value={member.name}>{member.name}さん用</option>
+                  ))}
+                </select>
                 <select value={selectedSupplyTemplate} onChange={(event) => applySupplyTemplate(event.target.value)}>
                   <option value="">防災品テンプレートから選ぶ</option>
                   {supplyTemplates.map((template) => (
@@ -1455,6 +1512,7 @@ export function DisasterNoteApp() {
                       <div className="supply-main">
                         <strong>{item.name}</strong>
                         <span>{supplyLabels[item.category]} / 数量 {item.quantity}</span>
+                        {item.ownerName ? <small>{item.ownerName}さん用</small> : null}
                         {item.note ? <small>{item.note}</small> : null}
                         <div className="quantity-actions">
                           <button type="button" onClick={() => adjustSupplyQuantity(item, -1)}>-1</button>
@@ -1594,6 +1652,79 @@ export function DisasterNoteApp() {
             </button>
             <button type="button" className="wide-action" onClick={() => setFamilyOverviewOpen(false)}>
               閉じる
+            </button>
+          </section>
+        </div>
+      ) : null}
+
+      {supplyOverviewOpen ? (
+        <div className="status-modal-backdrop" role="presentation" onClick={() => setSupplyOverviewOpen(false)}>
+          <section className="status-modal" role="dialog" aria-modal="true" aria-label="備蓄の内容" onClick={(event) => event.stopPropagation()}>
+            <p className="panel-label">備蓄</p>
+            <h2>備蓄の内訳</h2>
+            <div className="status-modal-list">
+              {supplyByOwner.map((group) => (
+                <div className="status-overview-row" key={group.owner}>
+                  <div className="status-overview-heading">
+                    <span>{group.owner}</span>
+                    <strong>{group.items.length}件</strong>
+                  </div>
+                  <ul>
+                    {group.items.slice(0, 6).map((item) => (
+                      <li key={item.id}>
+                        {item.name}
+                        <span>数量 {item.quantity}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ))}
+            </div>
+            <button type="button" className="secondary-action" onClick={() => { setSupplyOverviewOpen(false); setActiveScreen("supplies"); }}>
+              備蓄を編集する
+            </button>
+            <button type="button" className="wide-action" onClick={() => setSupplyOverviewOpen(false)}>閉じる</button>
+          </section>
+        </div>
+      ) : null}
+
+      {expiryOverviewOpen ? (
+        <div className="status-modal-backdrop" role="presentation" onClick={() => setExpiryOverviewOpen(false)}>
+          <section className="status-modal" role="dialog" aria-modal="true" aria-label="期限注意" onClick={(event) => event.stopPropagation()}>
+            <p className="panel-label">期限注意</p>
+            <h2>期限が近い備蓄</h2>
+            <div className="status-modal-list">
+              {expiringSupplies.length ? expiringSupplies.map((item) => (
+                <div className="setting-line" key={item.id}>
+                  <span>{item.name}</span>
+                  <strong>{daysUntil(item.expiresAt)}日以内</strong>
+                </div>
+              )) : <p>期限が近い備蓄はありません。</p>}
+            </div>
+            <button type="button" className="secondary-action" onClick={() => { setExpiryOverviewOpen(false); setActiveScreen("supplies"); }}>
+              備蓄を確認する
+            </button>
+            <button type="button" className="wide-action" onClick={() => setExpiryOverviewOpen(false)}>閉じる</button>
+          </section>
+        </div>
+      ) : null}
+
+      {reviewOverviewOpen ? (
+        <div className="status-modal-backdrop" role="presentation" onClick={() => setReviewOverviewOpen(false)}>
+          <section className="status-modal" role="dialog" aria-modal="true" aria-label="月1回の確認" onClick={(event) => event.stopPropagation()}>
+            <p className="panel-label">月1回の確認</p>
+            <h2>家族で確認すること</h2>
+            <ul className="compact-list">
+              <li>集合場所と連絡手順</li>
+              <li>備蓄の数量と期限</li>
+              <li>服薬、アレルギー、注意事項</li>
+            </ul>
+            <p className="review-feedback">前回の確認日: {formatDate(data.lastReviewedAt)}</p>
+            <button type="button" className="secondary-action" onClick={() => { setReviewOverviewOpen(false); setActiveScreen("note"); }}>
+              防災ノートを確認する
+            </button>
+            <button type="button" className="wide-action" onClick={() => { markReviewed(); setReviewOverviewOpen(false); }}>
+              確認した日として記録
             </button>
           </section>
         </div>
