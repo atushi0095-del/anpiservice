@@ -249,6 +249,18 @@ main {
   background: var(--bg-surface);
 }
 
+.brand-home-button {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  text-align: left;
+}
+
+.brand-home-button:focus-visible {
+  outline: 3px solid rgba(19, 122, 109, 0.22);
+  outline-offset: 4px;
+}
+
 .install-button:disabled,
 .wide-action:disabled {
   cursor: default;

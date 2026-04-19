@@ -23,6 +23,14 @@ import type { FamilyWatchTarget, WatchLink } from "@/lib/types";
 
 type AppScreen = "home" | "family" | "emergency" | "note" | "supplies" | "settings";
 type StatusDialog = EmergencyStatus | "unconfirmed";
+type FamilyStatusView = {
+  id: string;
+  name: string;
+  relation: string;
+  latestStatus: EmergencyStatus;
+  latestStatusAt?: string;
+  source: "local" | "cloud";
+};
 type BeforeInstallPromptEvent = Event & {
   prompt: () => Promise<void>;
   userChoice: Promise<{ outcome: "accepted" | "dismissed"; platform: string }>;
@@ -482,6 +490,28 @@ export function DisasterNoteApp() {
     }
   }, [consentStep]);
 
+  useEffect(() => {
+    if (!cloudUser) {
+      return;
+    }
+
+    const refresh = () => refreshWatchConnections(cloudUser);
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        refresh();
+      }
+    };
+    const timer = window.setInterval(refresh, 30000);
+    window.addEventListener("focus", refresh);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener("focus", refresh);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, [cloudUser]);
+
   const expiringSupplies = useMemo(
     () =>
       data.supplyItems.filter((item) => {
@@ -502,17 +532,61 @@ export function DisasterNoteApp() {
     });
     return Array.from(groups.entries()).map(([owner, items]) => ({ owner, items }));
   }, [data.supplyItems]);
+  const cloudWatchMembers = useMemo<FamilyStatusView[]>(
+    () =>
+      watchTargets.map((target) => ({
+        id: `cloud-${target.member.id}`,
+        name: target.member.displayName || target.member.email || "見守り相手",
+        relation: "家族共有",
+        latestStatus: target.latestCheckIn ? "safe" : "unavailable",
+        latestStatusAt: target.latestCheckIn?.checkedAt || "",
+        source: "cloud"
+      })),
+    [watchTargets]
+  );
+  const familyStatusMembers = useMemo<FamilyStatusView[]>(
+    () => [
+      ...data.members.map((member) => ({
+        id: member.id,
+        name: member.name,
+        relation: member.relation,
+        latestStatus: member.latestStatus,
+        latestStatusAt: member.latestStatusAt || "",
+        source: "local" as const
+      })),
+      ...cloudWatchMembers
+    ],
+    [cloudWatchMembers, data.members]
+  );
+  const visibleWatchLinks = useMemo(() => {
+    const byRecipient = new Map<string, WatchLink>();
+    watchLinks.forEach((link) => {
+      const key = `${link.familyEmail || link.familyId}`.toLowerCase();
+      const current = byRecipient.get(key);
+      if (!current) {
+        byRecipient.set(key, link);
+        return;
+      }
+
+      const currentScore = (current.active ? 2 : 0) + (current.inviteStatus === "accepted" ? 1 : 0);
+      const nextScore = (link.active ? 2 : 0) + (link.inviteStatus === "accepted" ? 1 : 0);
+      if (nextScore >= currentScore) {
+        byRecipient.set(key, link);
+      }
+    });
+    return Array.from(byRecipient.values()).filter((link) => link.active || link.inviteStatus !== "accepted");
+  }, [watchLinks]);
   const familyStatusCounts = useMemo(
     () => ({
-      safe: data.members.filter((member) => member.latestStatus === "safe").length,
-      need_help: data.members.filter((member) => member.latestStatus === "need_help").length,
-      unavailable: data.members.filter((member) => member.latestStatus === "unavailable" && member.latestStatusAt).length,
-      unconfirmed: data.members.filter((member) => member.latestStatus === "unavailable" && !member.latestStatusAt).length
+      safe: familyStatusMembers.filter((member) => member.latestStatus === "safe").length,
+      need_help: familyStatusMembers.filter((member) => member.latestStatus === "need_help").length,
+      unavailable: familyStatusMembers.filter((member) => member.latestStatus === "unavailable" && member.latestStatusAt).length,
+      unconfirmed: familyStatusMembers.filter((member) => member.latestStatus === "unavailable" && !member.latestStatusAt).length
     }),
-    [data.members]
+    [familyStatusMembers]
   );
   const familyStatusSummary =
-    data.members.length === 0 ? "家族未登録" : `${data.members.length}人の状況を見る`;
+    familyStatusMembers.length === 0 ? "家族未登録" : `${familyStatusMembers.length}人の状況を見る`;
   const statusSummaryItems: StatusSummaryItem[] = [
     {
       id: "safe",
@@ -550,14 +624,14 @@ export function DisasterNoteApp() {
   }, [data.emergencyContacts]);
   const statusDialogMembers =
     statusDialog === "unconfirmed"
-      ? data.members.filter((member) => member.latestStatus === "unavailable" && !member.latestStatusAt)
+      ? familyStatusMembers.filter((member) => member.latestStatus === "unavailable" && !member.latestStatusAt)
       : statusDialog
-        ? data.members.filter((member) => member.latestStatus === statusDialog && (statusDialog !== "unavailable" || member.latestStatusAt))
+        ? familyStatusMembers.filter((member) => member.latestStatus === statusDialog && (statusDialog !== "unavailable" || member.latestStatusAt))
         : [];
   const getMembersForStatus = (status: StatusDialog) =>
     status === "unconfirmed"
-      ? data.members.filter((member) => member.latestStatus === "unavailable" && !member.latestStatusAt)
-      : data.members.filter((member) => member.latestStatus === status && (status !== "unavailable" || member.latestStatusAt));
+      ? familyStatusMembers.filter((member) => member.latestStatus === "unavailable" && !member.latestStatusAt)
+      : familyStatusMembers.filter((member) => member.latestStatus === status && (status !== "unavailable" || member.latestStatusAt));
   const statusDialogTitle =
     statusDialog === "safe"
       ? "無事の家族"
@@ -567,7 +641,7 @@ export function DisasterNoteApp() {
           ? "返信困難の家族"
           : "未確認の家族";
 
-  function getMemberStatusLabel(member: HouseholdMember) {
+  function getMemberStatusLabel(member: Pick<FamilyStatusView, "latestStatus" | "latestStatusAt">) {
     if (member.latestStatus === "unavailable" && !member.latestStatusAt) {
       return "未確認";
     }
@@ -997,7 +1071,7 @@ export function DisasterNoteApp() {
 
     if (navigator.share) {
       navigator
-        .share({ title: "安否確認ノート", text })
+        .share({ title: "安否ノート", text })
         .then(() => setMessage(`${statusLabels[status]}を記録し、共有画面を開きました。`))
         .catch(() => setMessage(`${statusLabels[status]}を記録しました。共有を中止した場合は、共有文をコピーして送れます。`));
       return;
@@ -1020,11 +1094,11 @@ export function DisasterNoteApp() {
   function shareFamilyInvite(member?: HouseholdMember) {
     const targetName = member?.name ? `${member.name}さん` : "家族";
     const origin = typeof window !== "undefined" ? window.location.origin : "https://anpinote.vercel.app";
-    const text = `${targetName}へ\n安否確認ノートで家族の連絡先、避難場所、備蓄、緊急時の安否共有を一緒に確認しましょう。\n${origin}\n\n※現時点では端末内保存が中心です。自動同期は今後のクラウド同期機能で対応予定です。`;
+    const text = `${targetName}へ\n安否ノートで家族の連絡先、避難場所、備蓄、緊急時の安否共有を一緒に確認しましょう。\n${origin}\n\n※現時点では端末内保存が中心です。自動同期は今後のクラウド同期機能で対応予定です。`;
 
     if (navigator.share) {
       navigator
-        .share({ title: "安否確認ノートへの招待", text, url: origin })
+        .share({ title: "安否ノートへの招待", text, url: origin })
         .then(() => setMessage("招待の共有画面を開きました。LINEやメールを選んで送れます。"))
         .catch(() => setMessage("共有を中止しました。必要なら招待文をコピーできます。"));
       return;
@@ -1209,10 +1283,10 @@ export function DisasterNoteApp() {
       <main className="phone-app disaster-app consent-gate">
         <header className="app-header">
           <div className="brand-row">
-            <img src="/icon.svg" alt="安否確認ノート" className="app-icon" />
+            <img src="/icon.svg" alt="安否ノート" className="app-icon" />
             <div>
               <p className="eyebrow">はじめに確認してください</p>
-              <h1>安否確認ノート</h1>
+              <h1>安否ノート</h1>
             </div>
           </div>
         </header>
@@ -1274,13 +1348,13 @@ export function DisasterNoteApp() {
   return (
     <main className="phone-app disaster-app">
       <header className="app-header">
-        <div className="brand-row">
-          <img src="/icon.svg" alt="安否確認ノート" className="app-icon" />
+        <button type="button" className="brand-row brand-home-button" onClick={() => switchScreen("home")} aria-label="確認画面へ戻る">
+          <img src="/icon.svg" alt="安否ノート" className="app-icon" />
           <div>
-            <p className="eyebrow">日常の見守りと家族の備え</p>
-            <h1>安否確認ノート</h1>
+            <p className="eyebrow">日常と災害時の備え</p>
+            <h1>安否ノート</h1>
           </div>
-        </div>
+        </button>
         <div className="header-actions">
           <button type="button" className="header-settings-btn" onClick={() => switchScreen("settings")} aria-label="設定">
             ⚙
@@ -1293,7 +1367,7 @@ export function DisasterNoteApp() {
 
       <p className="app-message">{message}</p>
 
-      <section className="app-screen" aria-label="安否確認ノート" onTouchStart={handleScreenTouchStart} onTouchEnd={handleScreenTouchEnd}>
+      <section className="app-screen" aria-label="安否ノート" onTouchStart={handleScreenTouchStart} onTouchEnd={handleScreenTouchEnd}>
         <div className="screens-track" style={{ transform: `translateX(${-screens.findIndex((s) => s.id === activeScreen) * 100}%)` }}>
         <div className="screen-page" aria-hidden={activeScreen !== "home"}>
           <section className={dailyJustChecked ? "status-panel daily-check-panel checkin-complete" : "status-panel daily-check-panel"}>
@@ -1390,7 +1464,7 @@ export function DisasterNoteApp() {
             <p className="panel-label">家族の状況</p>
             <h2>誰がどの状況か</h2>
             <div className="member-status-list">
-              {data.members.map((member) => (
+              {familyStatusMembers.map((member) => (
                 <article className="member-status-row" key={member.id}>
                   <div>
                     <strong>{member.name}</strong>
@@ -1448,10 +1522,10 @@ export function DisasterNoteApp() {
                   ))}
                 </section>
               ) : null}
-              {watchLinks.length ? (
+              {visibleWatchLinks.length ? (
                 <section className="connection-group">
                   <h3>招待した相手</h3>
-                  {watchLinks.map((link) => (
+                  {visibleWatchLinks.map((link) => (
                     <article className="connection-row" key={link.id}>
                       <div>
                         <strong>{link.familyName}</strong>
@@ -2232,10 +2306,10 @@ export function DisasterNoteApp() {
         ))}
       </nav>
 
-      <section className="print-sheet" aria-label="印刷用 安否確認ノート">
+      <section className="print-sheet" aria-label="印刷用 安否ノート">
         <header>
           <p>印刷用控え</p>
-          <h1>安否確認ノート</h1>
+          <h1>安否ノート</h1>
           <p>印刷日: {new Intl.DateTimeFormat("ja-JP", { dateStyle: "long" }).format(new Date())}</p>
         </header>
 
