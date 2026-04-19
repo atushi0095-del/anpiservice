@@ -1350,12 +1350,13 @@ button {
 
 .emergency-panel-backdrop {
   align-items: end;
-  padding: 10px;
+  padding: max(10px, env(safe-area-inset-top)) 10px max(10px, env(safe-area-inset-bottom));
 }
 
 .emergency-sheet {
   width: min(520px, 100%);
   max-height: calc(100vh - 24px);
+  max-height: calc(100dvh - 24px);
   overflow-y: auto;
   border: 1px solid #d7e8e3;
   border-radius: 8px;
@@ -1365,15 +1366,29 @@ button {
 }
 
 .emergency-sheet-header {
+  position: sticky;
+  top: -12px;
+  z-index: 2;
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
-  margin-bottom: 10px;
+  margin: -12px -12px 10px;
+  border-bottom: 1px solid #d7e8e3;
+  background: #f7fbfa;
+  padding: 12px;
 }
 
 .emergency-sheet-header h2 {
   margin: 0;
+}
+
+.emergency-close-button {
+  flex-shrink: 0;
+  background: white;
+  color: var(--teal);
+  font-weight: 800;
+  min-height: 40px;
 }
 
 .emergency-extra-panel select,

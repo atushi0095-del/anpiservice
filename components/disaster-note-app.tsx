@@ -2092,7 +2092,7 @@ export function DisasterNoteApp() {
                 <p className="panel-label">災害時に送る</p>
                 <h2>今の状況を家族へ</h2>
               </div>
-              <button type="button" className="back-to-home" onClick={() => setEmergencyPanelOpen(false)}>
+              <button type="button" className="back-to-home emergency-close-button" onClick={() => setEmergencyPanelOpen(false)}>
                 閉じる
               </button>
             </div>
