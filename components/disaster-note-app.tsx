@@ -319,6 +319,9 @@ export function DisasterNoteApp() {
   });
   const [consentScrolledToEnd, setConsentScrolledToEnd] = useState(false);
   const [statusDialog, setStatusDialog] = useState<StatusDialog | null>(null);
+  const [familyOverviewOpen, setFamilyOverviewOpen] = useState(false);
+  const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
+  const [supplyDeleteMode, setSupplyDeleteMode] = useState(false);
 
   useEffect(() => {
     setData(loadLocalData());
@@ -396,6 +399,7 @@ export function DisasterNoteApp() {
       helper: "まだ安否ボタンや有事送信が押されていない家族"
     }
   ];
+  const visibleStatusSummaryItems = statusSummaryItems.filter((item) => item.count > 0);
   const statusDialogMembers =
     statusDialog === "unconfirmed"
       ? data.members.filter((member) => member.latestStatus === "unavailable" && !member.latestStatusAt)
@@ -511,6 +515,12 @@ export function DisasterNoteApp() {
   }
 
   function deleteCheckedSupplies() {
+    if (!supplyDeleteMode) {
+      setSupplyDeleteMode(true);
+      setMessage("削除する備蓄品を選んでください。もう一度削除ボタンを押すと削除します。");
+      return;
+    }
+
     if (selectedSupplyCount === 0) {
       setMessage("削除する備蓄品にチェックを入れてください。");
       return;
@@ -523,6 +533,7 @@ export function DisasterNoteApp() {
       },
       `チェックした備蓄品を${selectedSupplyCount}件削除しました。`
     );
+    setSupplyDeleteMode(false);
   }
 
   function updateSupply(supply: SupplyItem, patch: Partial<SupplyItem>) {
@@ -530,6 +541,28 @@ export function DisasterNoteApp() {
       ...data,
       supplyItems: data.supplyItems.map((item) => (item.id === supply.id ? { ...item, ...patch } : item))
     });
+  }
+
+  function adjustSupplyQuantity(supply: SupplyItem, delta: number) {
+    const match = supply.quantity.match(/^(\d+)(.*)$/);
+    if (!match) {
+      const nextQuantity = delta > 0 ? `${supply.quantity || "1"} +1` : supply.quantity;
+      updateSupply(supply, { quantity: nextQuantity });
+      return;
+    }
+
+    const current = Number(match[1]);
+    const unit = match[2] || "";
+    const next = Math.max(0, current + delta);
+    updateSupply(supply, { quantity: `${next}${unit}` });
+  }
+
+  function resetLocalData() {
+    window.localStorage.removeItem(storageKey);
+    setData(defaultDisasterNoteData);
+    setSupplyDeleteMode(false);
+    setResetConfirmOpen(false);
+    setMessage("端末内のデータを初期化しました。");
   }
 
   function addPlace() {
@@ -902,28 +935,27 @@ export function DisasterNoteApp() {
           <section className="status-panel disaster-home">
             <p className="panel-label">今日の安否ステータス</p>
             <h2>{monthlyTaskDone ? "今月の備え確認は完了しています" : "今月の備え確認をしましょう"}</h2>
-            <div className="home-family-status">
-              <div className="home-family-status-header">
+            <div className="metric-grid">
+              <button type="button" className="family-status-metric" onClick={() => setFamilyOverviewOpen(true)}>
                 <span>家族の状況</span>
-                <strong>{data.members.length}人</strong>
-              </div>
-              <div className="status-summary-list">
-                {statusSummaryItems.map((item) => (
-                  <button type="button" key={item.id} onClick={() => setStatusDialog(item.id)}>
-                    <span>{item.label}</span>
-                    <strong>{item.count}人</strong>
-                  </button>
-                ))}
-              </div>
-            </div>
-            <div className="metric-grid metric-grid-compact">
+                <strong>{visibleStatusSummaryItems.length > 0 ? "確認する" : "記録なし"}</strong>
+                <ul className="status-mini-list">
+                  {visibleStatusSummaryItems.length > 0 ? (
+                    visibleStatusSummaryItems.map((item) => (
+                      <li key={item.id}>{item.label} {item.count}人</li>
+                    ))
+                  ) : (
+                    <li>まだ状況記録がありません</li>
+                  )}
+                </ul>
+              </button>
               <button type="button" onClick={() => setActiveScreen("settings")}>
                 <span>備えの確認日</span>
                 <strong>{formatDate(data.lastReviewedAt)}</strong>
               </button>
               <button type="button" onClick={() => setActiveScreen("supplies")}>
                 <span>備蓄</span>
-                <strong>{checkedCount}/{data.supplyItems.length}</strong>
+                <strong>{data.supplyItems.length}件</strong>
               </button>
               <button type="button" onClick={() => setActiveScreen("supplies")}>
                 <span>期限注意</span>
@@ -1250,7 +1282,7 @@ export function DisasterNoteApp() {
           <section className="panel">
             <p className="panel-label">備蓄チェック</p>
             <h2>持ち出し品と備蓄</h2>
-            <p className="small-copy">チェックは確認済み・削除対象の選択に使えます。不要になったものはまとめて削除できます。</p>
+            <p className="small-copy">品名、分類、数量、期限はあとから編集できます。削除したい時だけ削除選択モードを使います。</p>
             <details className="add-details">
               <summary>備蓄品を追加</summary>
               <div className="family-add-form">
@@ -1271,9 +1303,26 @@ export function DisasterNoteApp() {
                 <button type="button" onClick={addSupply}>追加</button>
               </div>
             </details>
-            <button type="button" className="danger-button supply-delete-button" onClick={deleteCheckedSupplies}>
-              チェックした備蓄品を削除
-            </button>
+            <div className="supply-delete-actions">
+              <button type="button" className="danger-button supply-delete-button" onClick={deleteCheckedSupplies}>
+                {supplyDeleteMode ? `選択した備蓄品を削除${selectedSupplyCount > 0 ? ` (${selectedSupplyCount}件)` : ""}` : "削除する項目を選ぶ"}
+              </button>
+              {supplyDeleteMode ? (
+                <button
+                  type="button"
+                  className="secondary-action"
+                  onClick={() => {
+                    setSupplyDeleteMode(false);
+                    updateData({
+                      ...data,
+                      supplyItems: data.supplyItems.map((item) => ({ ...item, checked: false }))
+                    }, "削除選択を解除しました。");
+                  }}
+                >
+                  キャンセル
+                </button>
+              ) : null}
+            </div>
             <div className="supply-list compact-supply-list">
               {data.supplyItems.map((item) => {
                 const remaining = daysUntil(item.expiresAt);
@@ -1287,16 +1336,30 @@ export function DisasterNoteApp() {
                         ? "本日が消費期限"
                         : `あと${remaining}日で消費期限`;
                 return (
-                  <article className={`supply-row ${item.checked ? "is-checked" : ""}`} key={item.id}>
-                    <input
-                      type="checkbox"
-                      checked={item.checked}
-                      aria-label={`${item.name}を確認済みにする`}
-                      onChange={(event) => updateSupply(item, { checked: event.target.checked })}
-                    />
+                  <article className={supplyDeleteMode && item.checked ? "supply-row is-selected-for-delete" : "supply-row"} key={item.id}>
+                    {supplyDeleteMode ? (
+                      <input
+                        type="checkbox"
+                        checked={item.checked}
+                        aria-label={`${item.name}を削除対象にする`}
+                        onChange={(event) => updateSupply(item, { checked: event.target.checked })}
+                      />
+                    ) : null}
                     <div className="supply-main">
-                      <strong>{item.name}</strong>
-                      <span>{supplyLabels[item.category]} / {item.quantity}</span>
+                      <input value={item.name} onChange={(event) => updateSupply(item, { name: event.target.value })} aria-label="備蓄品名" />
+                      <div className="supply-edit-grid">
+                        <select value={item.category} onChange={(event) => updateSupply(item, { category: event.target.value as SupplyCategory })} aria-label="分類">
+                          {Object.entries(supplyLabels).map(([value, label]) => (
+                            <option key={value} value={value}>{label}</option>
+                          ))}
+                        </select>
+                        <input value={item.quantity} onChange={(event) => updateSupply(item, { quantity: event.target.value })} aria-label="数量" />
+                        <input value={item.expiresAt} onChange={(event) => updateSupply(item, { expiresAt: event.target.value })} type="date" aria-label="消費期限" />
+                      </div>
+                      <div className="quantity-actions">
+                        <button type="button" onClick={() => adjustSupplyQuantity(item, -1)}>-1</button>
+                        <button type="button" onClick={() => adjustSupplyQuantity(item, 1)}>+1</button>
+                      </div>
                     </div>
                     <span className={remaining !== null && remaining <= 30 ? "pill warning" : "pill"}>
                       {expiryText}
@@ -1369,11 +1432,7 @@ export function DisasterNoteApp() {
             <button
               type="button"
               className="danger-button"
-              onClick={() => {
-                window.localStorage.removeItem(storageKey);
-                setData(defaultDisasterNoteData);
-                setMessage("端末内のデータを初期化しました。");
-              }}
+              onClick={() => setResetConfirmOpen(true)}
             >
               端末データを初期化
             </button>
@@ -1390,6 +1449,48 @@ export function DisasterNoteApp() {
           </section>
         </div>
       </section>
+
+      {familyOverviewOpen ? (
+        <div className="status-modal-backdrop" role="presentation" onClick={() => setFamilyOverviewOpen(false)}>
+          <section className="status-modal" role="dialog" aria-modal="true" aria-label="家族の状況" onClick={(event) => event.stopPropagation()}>
+            <p className="panel-label">家族の状況</p>
+            <h2>今の状況</h2>
+            <div className="status-modal-list">
+              {visibleStatusSummaryItems.length > 0 ? (
+                visibleStatusSummaryItems.map((item) => (
+                  <button
+                    type="button"
+                    className="status-overview-row"
+                    key={item.id}
+                    onClick={() => {
+                      setFamilyOverviewOpen(false);
+                      setStatusDialog(item.id);
+                    }}
+                  >
+                    <span>{item.label}</span>
+                    <strong>{item.count}人</strong>
+                  </button>
+                ))
+              ) : (
+                <p>まだ家族の状況記録がありません。</p>
+              )}
+            </div>
+            <button
+              type="button"
+              className="secondary-action"
+              onClick={() => {
+                setFamilyOverviewOpen(false);
+                setActiveScreen("family");
+              }}
+            >
+              家族画面で確認する
+            </button>
+            <button type="button" className="wide-action" onClick={() => setFamilyOverviewOpen(false)}>
+              閉じる
+            </button>
+          </section>
+        </div>
+      ) : null}
 
       {statusDialog ? (
         <div className="status-modal-backdrop" role="presentation" onClick={() => setStatusDialog(null)}>
@@ -1425,6 +1526,22 @@ export function DisasterNoteApp() {
             </button>
             <button type="button" className="wide-action" onClick={() => setStatusDialog(null)}>
               閉じる
+            </button>
+          </section>
+        </div>
+      ) : null}
+
+      {resetConfirmOpen ? (
+        <div className="status-modal-backdrop" role="presentation" onClick={() => setResetConfirmOpen(false)}>
+          <section className="status-modal" role="dialog" aria-modal="true" aria-label="端末データ初期化の確認" onClick={(event) => event.stopPropagation()}>
+            <p className="panel-label">確認</p>
+            <h2>端末データを初期化しますか？</h2>
+            <p>この端末に保存している家族、連絡先、備蓄、ノートの内容を初期状態に戻します。元に戻せません。</p>
+            <button type="button" className="danger-button" onClick={resetLocalData}>
+              初期化する
+            </button>
+            <button type="button" className="wide-action" onClick={() => setResetConfirmOpen(false)}>
+              キャンセル
             </button>
           </section>
         </div>
