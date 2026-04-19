@@ -1260,9 +1260,14 @@ export function DisasterNoteApp() {
             <h1>安否確認ノート</h1>
           </div>
         </div>
-        <button type="button" className={installingApp ? "install-button is-busy" : "install-button"} onClick={handleInstallApp} disabled={installingApp || isStandalone}>
-          {isStandalone ? "追加済み" : installingApp ? "処理中" : "アプリ追加"}
-        </button>
+        <div className="header-actions">
+          <button type="button" className="header-settings-btn" onClick={() => switchScreen("settings")} aria-label="設定">
+            ⚙
+          </button>
+          <button type="button" className={installingApp ? "install-button is-busy" : "install-button"} onClick={handleInstallApp} disabled={installingApp || isStandalone}>
+            {isStandalone ? "追加済み" : installingApp ? "処理中" : "アプリ追加"}
+          </button>
+        </div>
       </header>
 
       <p className="app-message">{message}</p>
@@ -1279,6 +1284,9 @@ export function DisasterNoteApp() {
               onClick={recordDailyCheckIn}
             >
               無事です
+            </button>
+            <button type="button" className="emergency-launch" onClick={() => setActiveScreen("emergency")}>
+              災害時モード
             </button>
             <p className="checkin-feedback">
               {dailyJustChecked ? `最終安否確認: ${formatDate(data.members[0]?.latestStatusAt || data.statusLogs[0]?.createdAt || "")}` : "日常でも、急いで無事だけ伝えたい時でも使えます。下の人数表示にも反映されます。"}
@@ -1320,12 +1328,6 @@ export function DisasterNoteApp() {
                 <strong>{expiringSupplies.length}件</strong>
               </button>
             </div>
-            <button type="button" className="checkin-button emergency-launch" onClick={() => setActiveScreen("emergency")}>
-              災害時モード
-            </button>
-            <button type="button" className="settings-shortcut" onClick={() => setActiveScreen("settings")}>
-              設定・その他
-            </button>
           </section>
 
           <section className="panel compact-panel review-memo-panel" hidden>
