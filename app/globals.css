@@ -930,6 +930,10 @@ button {
   padding: 0 16px;
 }
 
+.print-sheet {
+  display: none;
+}
+
 .family-item,
 .log-item {
   display: grid;
@@ -1169,5 +1173,78 @@ footer a {
 
   .bottom-nav button {
     font-size: 0.78rem;
+  }
+}
+
+@media print {
+  body {
+    background: white;
+    color: #111;
+  }
+
+  .phone-app {
+    width: 100%;
+    margin: 0;
+    padding: 0;
+  }
+
+  .app-header,
+  .app-message,
+  .app-screen,
+  .bottom-nav {
+    display: none !important;
+  }
+
+  .print-sheet {
+    display: block;
+    padding: 14mm;
+    font-family: "Yu Gothic", "YuGothic", "Noto Sans JP", sans-serif;
+  }
+
+  .print-sheet header {
+    border-bottom: 2px solid #111;
+    margin-bottom: 10mm;
+    padding-bottom: 5mm;
+  }
+
+  .print-sheet h1 {
+    font-size: 24pt;
+  }
+
+  .print-sheet h2 {
+    border-bottom: 1px solid #999;
+    margin: 8mm 0 3mm;
+    font-size: 15pt;
+  }
+
+  .print-row {
+    break-inside: avoid;
+    border: 1px solid #ccc;
+    margin-bottom: 3mm;
+    padding: 3mm;
+  }
+
+  .print-row.compact {
+    display: grid;
+    grid-template-columns: 38mm 1fr;
+    gap: 3mm;
+  }
+
+  .print-row strong,
+  .print-row span {
+    display: block;
+  }
+
+  .print-row p,
+  .print-sheet footer p {
+    margin: 2mm 0 0;
+    line-height: 1.6;
+  }
+
+  .print-sheet footer {
+    border-top: 1px solid #999;
+    margin-top: 8mm;
+    padding-top: 4mm;
+    font-size: 10pt;
   }
 }

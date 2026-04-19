@@ -39,6 +39,7 @@ const statusMessages: Record<EmergencyStatus, string> = {
 };
 
 const dailyCheckInMessage = "今日も無事です。いつも通り過ごしています。";
+const consentStorageKey = "anpi-note-privacy-consent-v1";
 
 const statusActionCopy: Record<EmergencyStatus, string> = {
   safe: "無事を記録",
@@ -118,9 +119,11 @@ export function DisasterNoteApp() {
   const [lastEmergencyStatus, setLastEmergencyStatus] = useState<EmergencyStatus | null>(null);
   const [reviewJustMarked, setReviewJustMarked] = useState(false);
   const [dailyJustChecked, setDailyJustChecked] = useState(false);
+  const [privacyConsent, setPrivacyConsent] = useState(false);
 
   useEffect(() => {
     setData(loadLocalData());
+    setPrivacyConsent(window.localStorage.getItem(consentStorageKey) === "true");
     setReady(true);
   }, []);
 
@@ -319,6 +322,17 @@ export function DisasterNoteApp() {
     updateData({ ...data, lastReviewedAt: new Date().toISOString() }, "今月の確認を記録しました。");
   }
 
+  function updatePrivacyConsent(checked: boolean) {
+    setPrivacyConsent(checked);
+    window.localStorage.setItem(consentStorageKey, checked ? "true" : "false");
+    setMessage(checked ? "位置情報と家族共有の方針への同意を記録しました。" : "同意を解除しました。位置共有は必要な時だけ手動でONにしてください。");
+  }
+
+  function printSafetyNote() {
+    setMessage("印刷画面を開きます。紙に残して、スマホが使えない時の控えにできます。");
+    window.print();
+  }
+
   return (
     <main className="phone-app disaster-app">
       <header className="app-header">
@@ -330,7 +344,7 @@ export function DisasterNoteApp() {
           </div>
         </div>
         <button type="button" className="install-button" onClick={() => setMessage("ブラウザの共有メニューからホーム画面に追加できます。")}>
-          アプリ化
+          アプリ追加
         </button>
       </header>
 
@@ -400,6 +414,15 @@ export function DisasterNoteApp() {
             <h2>{latestLog ? `${latestLog.memberName}さん: ${statusLabels[latestLog.status]}` : "まだ記録がありません"}</h2>
             {latestLog ? <p className="latest-share-meta">{formatDate(latestLog.createdAt)} の記録</p> : null}
             <p>{latestLog ? latestLog.message : "有事の状態共有を記録するとここに表示されます。"}</p>
+          </section>
+
+          <section className="panel compact-panel">
+            <p className="panel-label">紙の控え</p>
+            <h2>スマホが使えない時に備える</h2>
+            <p>家族、緊急連絡先、避難場所、備蓄、医療メモを紙に残せます。</p>
+            <button type="button" className="wide-action" onClick={printSafetyNote}>
+              紙に印刷する
+            </button>
           </section>
         </div>
 
@@ -524,6 +547,7 @@ export function DisasterNoteApp() {
             {data.notificationSettings.locationShareEnabled ? (
               <input value={manualLocation} onChange={(event) => setManualLocation(event.target.value)} placeholder="例: 自宅、駅前、避難所名" />
             ) : null}
+            <p className="small-copy">位置情報は常時追跡しません。緊急時または本人が明示的に操作した時だけ共有文に含めます。</p>
             <div className="message-actions">
               <button type="button" className="wide-action" onClick={() => recordEmergencyStatus(selectedEmergencyStatus)}>
                 {statusActionCopy[selectedEmergencyStatus]}
@@ -682,6 +706,23 @@ export function DisasterNoteApp() {
           </section>
 
           <section className="panel compact-panel">
+            <p className="panel-label">位置情報と同意</p>
+            <h2>必要な時だけ共有</h2>
+            <p>
+              常時位置追跡、移動履歴の蓄積、行動分析、広告利用は行いません。現在地は緊急時または本人の明示操作時のみ、
+              家族への安否共有に必要な範囲で扱います。
+            </p>
+            <label className="check-row">
+              <input
+                type="checkbox"
+                checked={privacyConsent}
+                onChange={(event) => updatePrivacyConsent(event.target.checked)}
+              />
+              <span>取得情報、利用目的、共有先、保存有無、停止方法、保護者同意の説明を確認しました</span>
+            </label>
+          </section>
+
+          <section className="panel compact-panel">
             <p className="panel-label">データ</p>
             <h2>削除</h2>
             <p>この端末に保存した防災ノートを削除します。家族で必要な情報を確認してから実行してください。</p>
@@ -722,6 +763,77 @@ export function DisasterNoteApp() {
           </button>
         ))}
       </nav>
+
+      <section className="print-sheet" aria-label="印刷用 安否確認ノート">
+        <header>
+          <p>印刷用控え</p>
+          <h1>安否確認ノート</h1>
+          <p>印刷日: {new Intl.DateTimeFormat("ja-JP", { dateStyle: "long" }).format(new Date())}</p>
+        </header>
+
+        <section>
+          <h2>家族</h2>
+          {data.members.map((member) => (
+            <div className="print-row" key={member.id}>
+              <strong>{member.name}</strong>
+              <span>{member.relation} / {member.phone || "連絡先未設定"} / 最新状態: {statusLabels[member.latestStatus]}</span>
+              <p>{member.notes || "注意事項なし"}</p>
+            </div>
+          ))}
+        </section>
+
+        <section>
+          <h2>緊急連絡先</h2>
+          {data.emergencyContacts.map((contact) => (
+            <div className="print-row" key={contact.id}>
+              <strong>{contact.label}: {contact.name}</strong>
+              <span>{contact.phone || "未設定"}</span>
+            </div>
+          ))}
+        </section>
+
+        <section>
+          <h2>避難場所・集合ルール</h2>
+          {data.evacuationPlaces.map((place) => (
+            <div className="print-row" key={place.id}>
+              <strong>{place.name}</strong>
+              <span>{place.address || "住所未設定"}</span>
+              <p>{place.note || "メモなし"}</p>
+            </div>
+          ))}
+          {data.disasterRules.map((rule) => (
+            <div className="print-row" key={rule.id}>
+              <strong>{rule.title}</strong>
+              <p>{rule.body}</p>
+            </div>
+          ))}
+        </section>
+
+        <section>
+          <h2>服薬・アレルギー・注意事項</h2>
+          {data.medicalNotes.map((note) => (
+            <div className="print-row" key={note.id}>
+              <strong>{note.memberName}</strong>
+              <p>{note.body}</p>
+            </div>
+          ))}
+        </section>
+
+        <section>
+          <h2>備蓄</h2>
+          {data.supplyItems.map((item) => (
+            <div className="print-row compact" key={item.id}>
+              <strong>{item.name}</strong>
+              <span>{supplyLabels[item.category]} / {item.quantity} / 消費期限: {item.expiresAt || "未設定"}</span>
+            </div>
+          ))}
+        </section>
+
+        <footer>
+          <p>位置情報は常時追跡しません。共有は緊急時または本人の明示操作時のみ行う設計です。</p>
+          <p>この紙は個人情報を含みます。保管場所と共有先に注意してください。</p>
+        </footer>
+      </section>
     </main>
   );
 }
