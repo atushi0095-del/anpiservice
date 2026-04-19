@@ -114,6 +114,7 @@ export function DisasterNoteApp() {
   const [newPlaceName, setNewPlaceName] = useState("");
   const [newPlaceAddress, setNewPlaceAddress] = useState("");
   const [emergencyMessage, setEmergencyMessage] = useState(defaultDisasterNoteData.templateMessages[0]);
+  const [newTemplateMessage, setNewTemplateMessage] = useState("");
   const [manualLocation, setManualLocation] = useState("");
   const [selectedEmergencyStatus, setSelectedEmergencyStatus] = useState<EmergencyStatus>("safe");
   const [lastEmergencyStatus, setLastEmergencyStatus] = useState<EmergencyStatus | null>(null);
@@ -256,6 +257,25 @@ export function DisasterNoteApp() {
     setEmergencyMessage(statusMessages[status]);
   }
 
+  function addTemplateMessage() {
+    const text = newTemplateMessage.trim();
+    if (!text) {
+      setMessage("追加する文面を入力してください。");
+      return;
+    }
+
+    if (data.templateMessages.includes(text) || Object.values(statusMessages).includes(text)) {
+      setEmergencyMessage(text);
+      setNewTemplateMessage("");
+      setMessage("すでに登録済みの文面を選択しました。");
+      return;
+    }
+
+    updateData({ ...data, templateMessages: [text, ...data.templateMessages] }, "送る文面のテンプレートを追加しました。");
+    setEmergencyMessage(text);
+    setNewTemplateMessage("");
+  }
+
   function recordEmergencyStatus(status: EmergencyStatus, messageOverride?: string) {
     const now = new Date().toISOString();
     const member = data.members[0] || defaultDisasterNoteData.members[0];
@@ -317,6 +337,25 @@ export function DisasterNoteApp() {
       .catch(() => setMessage("共有文をコピーできませんでした。画面の文面を手動で送ってください。"));
   }
 
+  function fillCurrentLocation() {
+    if (!navigator.geolocation) {
+      setMessage("この端末またはブラウザでは現在地取得を利用できません。手動で場所を入力してください。");
+      return;
+    }
+
+    setMessage("現在地の取得許可を確認しています。許可した場合のみ、今回の共有文に使います。");
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const { latitude, longitude } = position.coords;
+        const locationText = `緯度 ${latitude.toFixed(5)}, 経度 ${longitude.toFixed(5)}`;
+        setManualLocation(locationText);
+        setMessage("現在地を入力しました。常時追跡や履歴保存は行いません。");
+      },
+      () => setMessage("現在地を取得できませんでした。許可設定を確認するか、場所を手動で入力してください。"),
+      { enableHighAccuracy: false, timeout: 10000, maximumAge: 60000 }
+    );
+  }
+
   function markReviewed() {
     setReviewJustMarked(true);
     updateData({ ...data, lastReviewedAt: new Date().toISOString() }, "今月の確認を記録しました。");
@@ -331,6 +370,51 @@ export function DisasterNoteApp() {
   function printSafetyNote() {
     setMessage("印刷画面を開きます。紙に残して、スマホが使えない時の控えにできます。");
     window.print();
+  }
+
+  if (!ready) {
+    return (
+      <main className="phone-app disaster-app">
+        <p className="app-message">読み込み中です。</p>
+      </main>
+    );
+  }
+
+  if (!privacyConsent) {
+    return (
+      <main className="phone-app disaster-app consent-gate">
+        <header className="app-header">
+          <div className="brand-row">
+            <img src="/icon.svg" alt="安否確認ノート" className="app-icon" />
+            <div>
+              <p className="eyebrow">はじめに確認してください</p>
+              <h1>安否確認ノート</h1>
+            </div>
+          </div>
+        </header>
+        <section className="panel">
+          <p className="panel-label">プライバシーと利用条件</p>
+          <h2>同意後に利用を開始します</h2>
+          <p>
+            このアプリは、家族の安否共有と備えの整理を助けるものです。常時位置追跡、移動履歴の蓄積、行動分析、
+            広告利用は行いません。位置情報は、緊急時または本人が明示的に操作した場合のみ扱います。
+          </p>
+          <ul className="compact-list">
+            <li>取得情報、利用目的、共有先、保存有無、削除方法を確認してください。</li>
+            <li>未成年が使う場合は、保護者の同意と管理を前提にしてください。</li>
+            <li>通信障害や端末故障に備えて、紙の控えも併用してください。</li>
+          </ul>
+          <div className="legal-links">
+            <a href="/terms">利用規約を読む</a>
+            <a href="/privacy">プライバシーポリシーを読む</a>
+            <a href="/disclaimer">免責事項を読む</a>
+          </div>
+          <button type="button" className="wide-action" onClick={() => updatePrivacyConsent(true)}>
+            内容を確認して開始する
+          </button>
+        </section>
+      </main>
+    );
   }
 
   return (
@@ -471,7 +555,7 @@ export function DisasterNoteApp() {
         <div className={activeScreen === "emergency" ? "screen-page is-active" : "screen-page"} hidden={activeScreen !== "emergency"}>
           <section className="status-panel emergency-panel">
             <p className="panel-label">緊急モード</p>
-            <h2>今の状況を記録</h2>
+            <h2>今の状況と送る文面</h2>
             <div className="emergency-actions">
               <button
                 type="button"
@@ -507,13 +591,7 @@ export function DisasterNoteApp() {
             <p className="emergency-confirmation">
               {lastEmergencyStatus ? `${statusLabels[lastEmergencyStatus]}を記録済みです。必要なら下の文面を家族へ送れます。` : "ボタンを押すと、この画面のまま状態を記録します。"}
             </p>
-            <p className="small-copy">救助や安全を保証するものではありません。必要な場合は公的な窓口や身近な人へ連絡してください。</p>
-          </section>
-
-          <section className="panel">
-            <p className="panel-label">定型文</p>
-            <h2>送る文面</h2>
-            <div className="status-choice">
+            <div className="status-choice emergency-choice">
               {(Object.keys(statusLabels) as EmergencyStatus[]).map((status) => (
                 <button
                   key={status}
@@ -525,12 +603,21 @@ export function DisasterNoteApp() {
                 </button>
               ))}
             </div>
-            <select value={emergencyMessage} onChange={(event) => setEmergencyMessage(event.target.value)}>
+            <label className="field-label" htmlFor="emergency-template">送る文面</label>
+            <select id="emergency-template" value={emergencyMessage} onChange={(event) => setEmergencyMessage(event.target.value)}>
               {Array.from(new Set([...Object.values(statusMessages), ...data.templateMessages])).map((template) => (
                 <option key={template} value={template}>{template}</option>
               ))}
             </select>
             <textarea value={emergencyMessage} onChange={(event) => setEmergencyMessage(event.target.value)} />
+            <div className="template-add-form">
+              <input
+                value={newTemplateMessage}
+                onChange={(event) => setNewTemplateMessage(event.target.value)}
+                placeholder="よく使う文面を追加"
+              />
+              <button type="button" onClick={addTemplateMessage}>テンプレート追加</button>
+            </div>
             <label className="check-row">
               <input
                 type="checkbox"
@@ -545,7 +632,10 @@ export function DisasterNoteApp() {
               <span>手動で現在地を共有する</span>
             </label>
             {data.notificationSettings.locationShareEnabled ? (
-              <input value={manualLocation} onChange={(event) => setManualLocation(event.target.value)} placeholder="例: 自宅、駅前、避難所名" />
+              <div className="location-tools">
+                <input value={manualLocation} onChange={(event) => setManualLocation(event.target.value)} placeholder="例: 自宅、駅前、避難所名" />
+                <button type="button" className="secondary-action" onClick={fillCurrentLocation}>現在地を取得して入力</button>
+              </div>
             ) : null}
             <p className="small-copy">位置情報は常時追跡しません。緊急時または本人が明示的に操作した時だけ共有文に含めます。</p>
             <div className="message-actions">
@@ -554,6 +644,7 @@ export function DisasterNoteApp() {
               </button>
               <button type="button" className="secondary-action" onClick={copyEmergencyText}>共有文をコピー</button>
             </div>
+            <p className="small-copy">救助や安全を保証するものではありません。必要な場合は公的な窓口や身近な人へ連絡してください。</p>
           </section>
 
           <section className="panel compact-panel">

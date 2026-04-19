@@ -54,6 +54,10 @@ main {
   padding: 18px 14px 104px;
 }
 
+.consent-gate {
+  padding-bottom: 32px;
+}
+
 .app-header {
   display: flex;
   align-items: center;
@@ -109,6 +113,10 @@ main {
 .screen-page {
   display: grid;
   gap: 14px;
+}
+
+.screen-page > :last-child {
+  margin-bottom: 112px;
 }
 
 .screen-page[hidden] {
@@ -796,6 +804,58 @@ button {
   background: var(--mint);
   color: var(--teal);
   box-shadow: inset 0 0 0 1px var(--teal);
+}
+
+.emergency-choice {
+  margin-bottom: 0;
+}
+
+.field-label {
+  display: block;
+  margin: 2px 0 -8px;
+  color: rgba(255, 255, 255, 0.86);
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.status-panel select,
+.status-panel textarea,
+.status-panel input[type="text"] {
+  width: 100%;
+  min-height: 48px;
+  border: 1px solid rgba(255, 255, 255, 0.45);
+  border-radius: 8px;
+  background: white;
+  color: var(--ink);
+  padding: 10px 12px;
+}
+
+.status-panel textarea {
+  min-height: 116px;
+  resize: vertical;
+  line-height: 1.6;
+}
+
+.template-add-form,
+.location-tools {
+  display: grid;
+  gap: 8px;
+}
+
+.template-add-form {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.template-add-form button {
+  border-color: white;
+  background: white;
+  color: var(--teal);
+  padding: 0 12px;
+}
+
+.location-tools .secondary-action,
+.emergency-panel .secondary-action {
+  border-color: white;
 }
 
 .message-actions {
