@@ -820,7 +820,7 @@ button {
 
 .family-status-strip {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 8px;
 }
 
@@ -834,6 +834,26 @@ button {
   text-align: center;
   font-size: 0.86rem;
   font-weight: 700;
+}
+
+.contact-add-form {
+  margin-top: 12px;
+}
+
+.contact-edit-row {
+  display: grid;
+  grid-template-columns: minmax(0, 0.8fr) minmax(0, 1fr) minmax(0, 1fr);
+  gap: 8px;
+  border-top: 1px solid var(--line);
+  padding: 10px 0;
+}
+
+.contact-edit-row input {
+  width: 100%;
+  min-height: 44px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 0 10px;
 }
 
 .family-status-strip-light {
@@ -1482,6 +1502,11 @@ footer a {
 
   .consent-progress {
     grid-template-columns: 1fr;
+  }
+
+  .family-status-strip,
+  .contact-edit-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .push-registration {

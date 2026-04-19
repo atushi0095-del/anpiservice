@@ -6,6 +6,7 @@ import { defaultDisasterNoteData } from "@/lib/disaster-demo-data";
 import type {
   DisasterNoteData,
   DisasterRule,
+  EmergencyContact,
   EmergencyStatus,
   HouseholdMember,
   MedicalNote,
@@ -15,6 +16,7 @@ import type {
 } from "@/lib/disaster-types";
 
 type AppScreen = "home" | "family" | "emergency" | "note" | "supplies" | "settings";
+type StatusDialog = EmergencyStatus | "unconfirmed";
 type ConsentDoc = {
   id: "terms" | "privacy" | "disclaimer";
   title: string;
@@ -220,6 +222,9 @@ export function DisasterNoteApp() {
   const [newMemberName, setNewMemberName] = useState("");
   const [newMemberRelation, setNewMemberRelation] = useState("");
   const [newMemberPhone, setNewMemberPhone] = useState("");
+  const [newContactLabel, setNewContactLabel] = useState("");
+  const [newContactName, setNewContactName] = useState("");
+  const [newContactPhone, setNewContactPhone] = useState("");
   const [newSupplyName, setNewSupplyName] = useState("");
   const [newSupplyCategory, setNewSupplyCategory] = useState<SupplyCategory>("food");
   const [newSupplyQuantity, setNewSupplyQuantity] = useState("");
@@ -244,7 +249,7 @@ export function DisasterNoteApp() {
     disclaimer: false
   });
   const [consentScrolledToEnd, setConsentScrolledToEnd] = useState(false);
-  const [statusDialog, setStatusDialog] = useState<EmergencyStatus | null>(null);
+  const [statusDialog, setStatusDialog] = useState<StatusDialog | null>(null);
 
   useEffect(() => {
     setData(loadLocalData());
@@ -288,7 +293,8 @@ export function DisasterNoteApp() {
     () => ({
       safe: data.members.filter((member) => member.latestStatus === "safe").length,
       need_help: data.members.filter((member) => member.latestStatus === "need_help").length,
-      unavailable: data.members.filter((member) => member.latestStatus === "unavailable").length
+      unavailable: data.members.filter((member) => member.latestStatus === "unavailable" && member.latestStatusAt).length,
+      unconfirmed: data.members.filter((member) => member.latestStatus === "unavailable" && !member.latestStatusAt).length
     }),
     [data.members]
   );
@@ -298,15 +304,32 @@ export function DisasterNoteApp() {
       : familyStatusCounts.need_help > 0
         ? `要支援 ${familyStatusCounts.need_help}人`
         : familyStatusCounts.unavailable > 0
-          ? `未確認・返信困難 ${familyStatusCounts.unavailable}人`
-          : "全員無事";
-  const statusDialogMembers = statusDialog ? data.members.filter((member) => member.latestStatus === statusDialog) : [];
+          ? `返信困難 ${familyStatusCounts.unavailable}人`
+          : familyStatusCounts.unconfirmed > 0
+            ? `未確認 ${familyStatusCounts.unconfirmed}人`
+            : "全員無事";
+  const statusDialogMembers =
+    statusDialog === "unconfirmed"
+      ? data.members.filter((member) => member.latestStatus === "unavailable" && !member.latestStatusAt)
+      : statusDialog
+        ? data.members.filter((member) => member.latestStatus === statusDialog && (statusDialog !== "unavailable" || member.latestStatusAt))
+        : [];
   const statusDialogTitle =
     statusDialog === "safe"
       ? "無事の家族"
       : statusDialog === "need_help"
         ? "要支援の家族"
-        : "未確認・返信困難の家族";
+        : statusDialog === "unavailable"
+          ? "返信困難の家族"
+          : "未確認の家族";
+
+  function getMemberStatusLabel(member: HouseholdMember) {
+    if (member.latestStatus === "unavailable" && !member.latestStatusAt) {
+      return "未確認";
+    }
+
+    return statusLabels[member.latestStatus];
+  }
 
   function updateData(next: DisasterNoteData, nextMessage = "保存しました。") {
     setData(next);
@@ -337,6 +360,32 @@ export function DisasterNoteApp() {
     updateData({
       ...data,
       members: data.members.map((item) => (item.id === member.id ? { ...item, ...patch } : item))
+    });
+  }
+
+  function addEmergencyContact() {
+    if (!newContactName.trim()) {
+      setMessage("緊急連絡先の名前を入力してください。");
+      return;
+    }
+
+    const contact: EmergencyContact = {
+      id: createId("contact"),
+      label: newContactLabel.trim() || "連絡先",
+      name: newContactName.trim(),
+      phone: newContactPhone.trim()
+    };
+
+    updateData({ ...data, emergencyContacts: [contact, ...data.emergencyContacts] }, "緊急連絡先を追加しました。");
+    setNewContactLabel("");
+    setNewContactName("");
+    setNewContactPhone("");
+  }
+
+  function updateEmergencyContact(contact: EmergencyContact, patch: Partial<EmergencyContact>) {
+    updateData({
+      ...data,
+      emergencyContacts: data.emergencyContacts.map((item) => (item.id === contact.id ? { ...item, ...patch } : item))
     });
   }
 
@@ -575,6 +624,28 @@ export function DisasterNoteApp() {
     );
   }
 
+  function toggleLocationShare() {
+    if (data.notificationSettings.locationShareEnabled) {
+      updateData(
+        {
+          ...data,
+          notificationSettings: { ...data.notificationSettings, locationShareEnabled: false }
+        },
+        "位置共有をOFFにしました。"
+      );
+      return;
+    }
+
+    updateData(
+      {
+        ...data,
+        notificationSettings: { ...data.notificationSettings, locationShareEnabled: true }
+      },
+      "位置共有をONにしました。現在地の取得許可を確認します。"
+    );
+    fillCurrentLocation();
+  }
+
   function markReviewed() {
     setReviewJustMarked(true);
     updateData({ ...data, lastReviewedAt: new Date().toISOString() }, "今月の確認を記録しました。");
@@ -740,7 +811,8 @@ export function DisasterNoteApp() {
             <div className="family-status-strip">
               <button type="button" onClick={() => setStatusDialog("safe")}>無事 {familyStatusCounts.safe}人</button>
               <button type="button" onClick={() => setStatusDialog("need_help")}>要支援 {familyStatusCounts.need_help}人</button>
-              <button type="button" onClick={() => setStatusDialog("unavailable")}>未確認 {familyStatusCounts.unavailable}人</button>
+              <button type="button" onClick={() => setStatusDialog("unavailable")}>返信困難 {familyStatusCounts.unavailable}人</button>
+              <button type="button" onClick={() => setStatusDialog("unconfirmed")}>未確認 {familyStatusCounts.unconfirmed}人</button>
             </div>
             <button type="button" className="checkin-button emergency-launch" onClick={() => setActiveScreen("emergency")}>
               有事の安否共有
@@ -787,9 +859,10 @@ export function DisasterNoteApp() {
             <div className="family-status-strip family-status-strip-light">
               <button type="button" onClick={() => setStatusDialog("safe")}>無事 {familyStatusCounts.safe}人</button>
               <button type="button" onClick={() => setStatusDialog("need_help")}>要支援 {familyStatusCounts.need_help}人</button>
-              <button type="button" onClick={() => setStatusDialog("unavailable")}>未確認 {familyStatusCounts.unavailable}人</button>
+              <button type="button" onClick={() => setStatusDialog("unavailable")}>返信困難 {familyStatusCounts.unavailable}人</button>
+              <button type="button" onClick={() => setStatusDialog("unconfirmed")}>未確認 {familyStatusCounts.unconfirmed}人</button>
             </div>
-            <p className="small-copy">未確認は、まだ安否が入っていない、または返信が難しい状態です。</p>
+            <p className="small-copy">未確認はまだ誰も安否を押していない状態、返信困難は本人が返信困難として送信した状態です。</p>
           </section>
 
           <section className="panel">
@@ -816,7 +889,7 @@ export function DisasterNoteApp() {
                       <p>{member.relation} / {member.phone || "連絡先未設定"}</p>
                     </div>
                     <span className={`pill ${member.latestStatus === "safe" ? "success" : "warning"}`}>
-                      {statusLabels[member.latestStatus]}
+                      {getMemberStatusLabel(member)}
                     </span>
                   </div>
                   <details className="member-detail">
@@ -838,11 +911,19 @@ export function DisasterNoteApp() {
           <section className="panel compact-panel">
             <p className="panel-label">緊急連絡先</p>
             <h2>連絡先リスト</h2>
+            <p className="small-copy">親族、学校、かかりつけ医、近所の協力者などを登録できます。</p>
+            <div className="family-add-form contact-add-form">
+              <input value={newContactLabel} onChange={(event) => setNewContactLabel(event.target.value)} placeholder="種類 例: 親族" />
+              <input value={newContactName} onChange={(event) => setNewContactName(event.target.value)} placeholder="名前" />
+              <input value={newContactPhone} onChange={(event) => setNewContactPhone(event.target.value)} placeholder="電話番号" />
+              <button type="button" onClick={addEmergencyContact}>追加</button>
+            </div>
             {data.emergencyContacts.map((contact) => (
-              <div className="setting-line" key={contact.id}>
-                <span>{contact.label}: {contact.name}</span>
-                <strong>{contact.phone || "未設定"}</strong>
-              </div>
+              <article className="contact-edit-row" key={contact.id}>
+                <input value={contact.label} onChange={(event) => updateEmergencyContact(contact, { label: event.target.value })} aria-label="連絡先の種類" />
+                <input value={contact.name} onChange={(event) => updateEmergencyContact(contact, { name: event.target.value })} aria-label="連絡先名" />
+                <input value={contact.phone} onChange={(event) => updateEmergencyContact(contact, { phone: event.target.value })} aria-label="電話番号" />
+              </article>
             ))}
           </section>
 
@@ -896,17 +977,9 @@ export function DisasterNoteApp() {
               <button
                 type="button"
                 className={data.notificationSettings.locationShareEnabled ? "secondary-action is-selected" : "secondary-action"}
-                onClick={() =>
-                  updateData({
-                    ...data,
-                    notificationSettings: {
-                      ...data.notificationSettings,
-                      locationShareEnabled: !data.notificationSettings.locationShareEnabled
-                    }
-                  }, data.notificationSettings.locationShareEnabled ? "位置共有をOFFにしました。" : "位置共有を今回の操作で有効にしました。")
-                }
+                onClick={toggleLocationShare}
               >
-                {data.notificationSettings.locationShareEnabled ? "位置共有ON" : "位置共有OFF"}
+                {data.notificationSettings.locationShareEnabled ? "位置共有ON" : "現在地を取得してON"}
               </button>
             </div>
             {data.notificationSettings.locationShareEnabled ? (
@@ -919,12 +992,13 @@ export function DisasterNoteApp() {
                   }}
                   placeholder="例: 自宅、駅前、避難所名"
                 />
-                <button type="button" className="secondary-action" onClick={fillCurrentLocation}>現在地を取得して地図リンクを作る</button>
                 {locationMapUrl ? (
                   <a className="map-preview" href={locationMapUrl} target="_blank" rel="noreferrer">
                     Googleマップで現在地を開く
                   </a>
-                ) : null}
+                ) : (
+                  <p className="small-copy">許可後に現在地が入ります。取得できない場合は手動で場所を入力できます。</p>
+                )}
               </div>
             ) : null}
             <div className="message-actions">
@@ -1163,8 +1237,10 @@ export function DisasterNoteApp() {
           <section className="status-modal" role="dialog" aria-modal="true" aria-label={statusDialogTitle} onClick={(event) => event.stopPropagation()}>
             <p className="panel-label">家族の状況</p>
             <h2>{statusDialogTitle}</h2>
-            {statusDialog === "unavailable" ? (
-              <p className="small-copy">未確認は、まだ安否が入っていない、または返信が難しい状態です。</p>
+            {statusDialog === "unconfirmed" ? (
+              <p className="small-copy">未確認は、まだ安否ボタンや有事の送信が押されていない状態です。</p>
+            ) : statusDialog === "unavailable" ? (
+              <p className="small-copy">返信困難は、本人が「返信困難」として送信した状態です。</p>
             ) : null}
             <div className="status-modal-list">
               {statusDialogMembers.length > 0 ? (
