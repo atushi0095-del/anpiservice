@@ -1095,14 +1095,14 @@ export function DisasterNoteApp() {
     recordEmergencyStatus(selectedEmergencyStatus, messageText);
     setEmergencyPanelOpen(false);
     setMessage(
-      `${statusLabels[selectedEmergencyStatus]}をアプリ内に送信しました。家族状況と最新の共有に反映しました。クラウド同期前は、この端末内の記録として保存されます。`
+      `${statusLabels[selectedEmergencyStatus]}をアプリ内に記録しました。家族の状況に反映しました。クラウド同期を使っていない場合は、この端末内の記録として保存されます。`
     );
   }
 
   function shareFamilyInvite(member?: HouseholdMember) {
     const targetName = member?.name ? `${member.name}さん` : "家族";
     const origin = typeof window !== "undefined" ? window.location.origin : "https://anpinote.vercel.app";
-    const text = `${targetName}へ\n安否ノートで家族の連絡先、避難場所、備蓄、緊急時の安否共有を一緒に確認しましょう。\n${origin}\n\n※現時点では端末内保存が中心です。自動同期は今後のクラウド同期機能で対応予定です。`;
+    const text = `${targetName}へ\n安否ノートで家族の連絡先、避難場所、備蓄、緊急時の安否共有を一緒に確認しましょう。\n${origin}\n\n※端末保存を基本に、設定からクラウド同期も利用できます。`;
 
     if (navigator.share) {
       navigator
@@ -1495,7 +1495,7 @@ export function DisasterNoteApp() {
             <p className="panel-label">家族</p>
             <h2>家族メンバー</h2>
             <p className="small-copy">
-              家族を追加したら、招待をLINEやメールで送れます。今は端末内保存が中心のため、自動で同じデータが同期されるのはPhase 2のクラウド同期からです。
+              家族を追加したら、招待をLINEやメールで送れます。相手が承認すると、家族の安否確認をお互いに確認できます。
             </p>
             <div className="mutual-watch-card">
               <div>

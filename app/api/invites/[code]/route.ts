@@ -111,7 +111,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
         inviteStatus: "accepted",
         acceptedAt: now,
         active: true,
-        preferredChannel: "push",
+        preferredChannel: "push"
       },
       { merge: true }
     );
