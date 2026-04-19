@@ -47,7 +47,7 @@ const screens: Array<{ id: AppScreen; label: string }> = [
   { id: "family", label: "つながる" },
   { id: "emergency", label: "災害時" },
   { id: "note", label: "避難連絡" },
-  { id: "supplies", label: "備蓄" },
+  { id: "supplies", label: "防災備蓄" },
   { id: "settings", label: "設定" }
 ];
 
@@ -376,6 +376,7 @@ export function DisasterNoteApp() {
   const [authPassword, setAuthPassword] = useState("");
   const [authMode, setAuthMode] = useState<"login" | "register">("login");
   const [authError, setAuthError] = useState("");
+  const [guardianConsent, setGuardianConsent] = useState(false);
   const [watchName, setWatchName] = useState("");
   const [watchEmail, setWatchEmail] = useState("");
   const [watchLinks, setWatchLinks] = useState<WatchLink[]>([]);
@@ -1094,6 +1095,10 @@ export function DisasterNoteApp() {
       if (authMode === "login") {
         await signInWithEmailAndPassword(auth, authEmail, authPassword);
       } else {
+        if (!guardianConsent) {
+          setAuthError("新規登録には、18歳以上であること、または保護者の同意があることの確認が必要です。");
+          return;
+        }
         await createUserWithEmailAndPassword(auth, authEmail, authPassword);
       }
       setAuthEmail("");
@@ -1310,12 +1315,13 @@ export function DisasterNoteApp() {
           </section>
 
           <section className="panel compact-panel">
-            <p className="panel-label">紙の控え</p>
-            <h2>スマホが使えない時に備える</h2>
-            <p>家族、緊急連絡先、避難場所、備蓄、医療メモを紙に残せます。</p>
+            <p className="panel-label">PDF・印刷</p>
+            <h2>紙の控えを作る</h2>
+            <p>家族情報、緊急連絡先、避難場所、防災備蓄を1枚にまとめて印刷できます。スマホが使えない時の備えに。</p>
             <button type="button" className="wide-action" onClick={printSafetyNote}>
-              紙に印刷する
+              PDF・印刷で保存
             </button>
+            <p className="small-copy">iPhoneは「Safari → 共有 → PDFを保存」、Androidは「印刷 → PDFに保存」でPDF化できます。</p>
           </section>
         </div>
 
@@ -1356,14 +1362,14 @@ export function DisasterNoteApp() {
                 <p>相手に招待リンクを送り、承認されるとお互いの安否確認を見られます。相互に見守る場合は承認画面で「自分も相手に見守ってもらう」を選びます。</p>
               </div>
               <button type="button" onClick={() => cloudUser ? refreshWatchConnections(cloudUser) : setActiveScreen("settings")}>
-                {cloudUser ? "更新する" : "ログインする"}
+                {cloudUser ? "つながりを更新" : "ログインして使う"}
               </button>
             </div>
             <div className="connect-form">
               <input value={watchName} onChange={(event) => setWatchName(event.target.value)} placeholder="つながる相手の名前" />
               <input value={watchEmail} onChange={(event) => setWatchEmail(event.target.value)} placeholder="相手のメールアドレス" type="email" />
               <button type="button" className={watchAdding ? "is-busy" : ""} onClick={addWatchInvite} disabled={watchAdding}>
-                {watchAdding ? "招待作成中..." : "招待してつながる"}
+                {watchAdding ? "招待作成中..." : "招待を作成する"}
               </button>
             </div>
             <div className="connection-list">
@@ -1454,13 +1460,24 @@ export function DisasterNoteApp() {
               <input value={newContactPhone} onChange={(event) => setNewContactPhone(event.target.value)} placeholder="電話番号" />
               <button type="button" onClick={addEmergencyContact}>追加</button>
             </div>
-            {data.emergencyContacts.map((contact) => (
-              <article className="contact-edit-row" key={contact.id}>
-                <input value={contact.label} onChange={(event) => updateEmergencyContact(contact, { label: event.target.value })} aria-label="連絡先の種類" />
-                <input value={contact.name} onChange={(event) => updateEmergencyContact(contact, { name: event.target.value })} aria-label="連絡先名" />
-                <input value={contact.phone} onChange={(event) => updateEmergencyContact(contact, { phone: event.target.value })} aria-label="電話番号" />
-              </article>
-            ))}
+            <div className="contact-list compact-supply-list">
+              {data.emergencyContacts.map((contact) => (
+                <article className="contact-row" key={contact.id}>
+                  <div className="supply-main">
+                    <strong>{contact.name || "名前未設定"}</strong>
+                    <span>{contact.label || "連絡先"} / {contact.phone || "電話番号未設定"}</span>
+                    <details className="member-detail">
+                      <summary>編集</summary>
+                      <div className="contact-edit-row">
+                        <input value={contact.label} onChange={(event) => updateEmergencyContact(contact, { label: event.target.value })} aria-label="連絡先の種類" />
+                        <input value={contact.name} onChange={(event) => updateEmergencyContact(contact, { name: event.target.value })} aria-label="連絡先名" />
+                        <input value={contact.phone} onChange={(event) => updateEmergencyContact(contact, { phone: event.target.value })} aria-label="電話番号" />
+                      </div>
+                    </details>
+                  </div>
+                </article>
+              ))}
+            </div>
           </section>
 
         </div>
@@ -1834,6 +1851,16 @@ export function DisasterNoteApp() {
                     placeholder="パスワード（6文字以上）"
                     autoComplete={authMode === "register" ? "new-password" : "current-password"}
                   />
+                  {authMode === "register" ? (
+                    <label className="check-row legal-check-row">
+                      <input
+                        type="checkbox"
+                        checked={guardianConsent}
+                        onChange={(event) => setGuardianConsent(event.target.checked)}
+                      />
+                      <span>18歳以上です。または、保護者の同意を得て利用します。</span>
+                    </label>
+                  ) : null}
                   {authError ? <p className="auth-error">{authError}</p> : null}
                   <div className="cloud-auth-actions">
                     <button type="button" onClick={handleCloudSignIn}>
@@ -1842,7 +1869,7 @@ export function DisasterNoteApp() {
                     <button
                       type="button"
                       className="secondary-action"
-                      onClick={() => { setAuthMode(authMode === "login" ? "register" : "login"); setAuthError(""); }}
+                      onClick={() => { setAuthMode(authMode === "login" ? "register" : "login"); setAuthError(""); setGuardianConsent(false); }}
                     >
                       {authMode === "login" ? "新規登録はこちら" : "ログインに戻る"}
                     </button>
@@ -1884,16 +1911,6 @@ export function DisasterNoteApp() {
             >
               端末データを初期化
             </button>
-          </section>
-
-          <section className="panel compact-panel">
-            <p className="panel-label">PDF・印刷</p>
-            <h2>紙の控えを作る</h2>
-            <p>家族情報、緊急連絡先、避難場所、備蓄を1枚にまとめて印刷できます。スマホが使えない時の備えに。</p>
-            <button type="button" className="wide-action" onClick={printSafetyNote}>
-              PDF・印刷で保存
-            </button>
-            <p className="small-copy">iPhoneは「Safari → 共有 → PDFを保存」、Androidは「印刷 → PDFに保存」でPDF化できます。</p>
           </section>
 
           <section className="panel compact-panel">

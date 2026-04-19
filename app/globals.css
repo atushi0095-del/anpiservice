@@ -1037,6 +1037,21 @@ button {
   margin-top: 12px;
 }
 
+.contact-list {
+  gap: 8px;
+}
+
+.contact-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 8px;
+  align-items: center;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fbfdfc;
+  padding: 10px 12px;
+}
+
 .contact-edit-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
@@ -1053,6 +1068,12 @@ button {
   border: 1px solid var(--line);
   border-radius: 8px;
   padding: 0 10px;
+}
+
+.legal-check-row {
+  align-items: flex-start;
+  font-weight: 700;
+  line-height: 1.5;
 }
 
 .family-status-strip-light {
@@ -2030,8 +2051,7 @@ footer a {
     grid-template-columns: 1fr;
   }
 
-  .family-status-strip,
-  .contact-edit-row {
+  .family-status-strip {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 

@@ -40,6 +40,7 @@ export function InviteAcceptance({ code }: InviteAcceptanceProps) {
   const [mutualWatch, setMutualWatch] = useState(true);
   const [authAction, setAuthAction] = useState<"signin" | "signup" | null>(null);
   const [accepting, setAccepting] = useState(false);
+  const [guardianConsent, setGuardianConsent] = useState(false);
 
   useEffect(() => {
     fetch(`/api/invites/${encodeURIComponent(normalizedCode)}`)
@@ -83,6 +84,10 @@ export function InviteAcceptance({ code }: InviteAcceptanceProps) {
       if (mode === "signin") {
         await signInWithEmailAndPassword(auth, email, password);
       } else {
+        if (!guardianConsent) {
+          setMessage("新規登録には、18歳以上であること、または保護者の同意があることの確認が必要です。");
+          return;
+        }
         if (!isStrongEnoughPassword(password)) {
           setMessage("パスワードは8文字以上で、英字と数字を含めてください。");
           return;
@@ -165,6 +170,12 @@ export function InviteAcceptance({ code }: InviteAcceptanceProps) {
           <div className="auth-form invite-auth">
             <input value={email} onChange={(event) => setEmail(event.target.value)} placeholder="メールアドレス" type="email" />
             <input value={password} onChange={(event) => setPassword(event.target.value)} placeholder="パスワード 8文字以上" type="password" />
+            {authAction !== "signin" ? (
+              <label className="check-row legal-check-row">
+                <input type="checkbox" checked={guardianConsent} onChange={(event) => setGuardianConsent(event.target.checked)} />
+                <span>新規登録の場合: 18歳以上です。または、保護者の同意を得て利用します。</span>
+              </label>
+            ) : null}
             <button type="button" className={authAction === "signin" ? "is-busy" : ""} onClick={() => handleAuth("signin")} disabled={Boolean(authAction)}>
               {authAction === "signin" ? "ログイン中..." : "ログイン"}
             </button>

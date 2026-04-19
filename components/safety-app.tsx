@@ -148,6 +148,7 @@ export function SafetyApp() {
   const [deferredInstallPrompt, setDeferredInstallPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [installGuideOpen, setInstallGuideOpen] = useState(false);
   const [authAction, setAuthAction] = useState<"signin" | "signup" | "signout" | null>(null);
+  const [guardianConsent, setGuardianConsent] = useState(false);
   const [familyAdding, setFamilyAdding] = useState(false);
   const [frequencySaving, setFrequencySaving] = useState<CheckInFrequencyDays | null>(null);
   const [deactivatingId, setDeactivatingId] = useState<string | null>(null);
@@ -319,6 +320,10 @@ export function SafetyApp() {
       if (mode === "signin") {
         await signInWithEmailAndPassword(auth, email, password);
       } else {
+        if (!guardianConsent) {
+          setMessage("新規登録には、18歳以上であること、または保護者の同意があることの確認が必要です。");
+          return;
+        }
         if (!isStrongEnoughPassword(password)) {
           setMessage("パスワードは8文字以上で、英字と数字を含めてください。");
           return;
@@ -644,6 +649,10 @@ export function SafetyApp() {
                     placeholder="パスワード 8文字以上"
                     type="password"
                   />
+                  <label className="check-row legal-check-row">
+                    <input type="checkbox" checked={guardianConsent} onChange={(event) => setGuardianConsent(event.target.checked)} />
+                    <span>新規登録の場合: 18歳以上です。または、保護者の同意を得て利用します。</span>
+                  </label>
                   <button type="button" className={authAction === "signin" ? "is-busy" : ""} onClick={() => handleAuth("signin")} disabled={Boolean(authAction)}>
                     {authAction === "signin" ? "ログイン中..." : "ログイン"}
                   </button>
