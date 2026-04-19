@@ -196,12 +196,44 @@ main {
   touch-action: pan-y;
 }
 
+.screen-page.is-active.slide-left {
+  animation: slidePageFromRight 240ms ease both;
+}
+
+.screen-page.is-active.slide-right {
+  animation: slidePageFromLeft 240ms ease both;
+}
+
 .screen-page > :last-child {
   margin-bottom: 112px;
 }
 
 .screen-page[hidden] {
   display: none;
+}
+
+@keyframes slidePageFromRight {
+  from {
+    opacity: 0.72;
+    transform: translateX(34px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes slidePageFromLeft {
+  from {
+    opacity: 0.72;
+    transform: translateX(-34px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
 }
 
 .main-checkin {

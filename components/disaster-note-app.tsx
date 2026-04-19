@@ -309,6 +309,7 @@ function loadLocalData(): DisasterNoteData {
 
 export function DisasterNoteApp() {
   const [activeScreen, setActiveScreen] = useState<AppScreen>("home");
+  const [slideDirection, setSlideDirection] = useState<"left" | "right" | null>(null);
   const [data, setData] = useState<DisasterNoteData>(defaultDisasterNoteData);
   const [ready, setReady] = useState(false);
   const [message, setMessage] = useState("端末に保存して、オフラインでも家族の備えを確認できます。");
@@ -636,11 +637,21 @@ export function DisasterNoteApp() {
     updateSupply(supply, { quantity: String(next) });
   }
 
+  function switchScreen(nextScreen: AppScreen, direction?: "left" | "right") {
+    if (nextScreen === activeScreen) {
+      return;
+    }
+
+    setSlideDirection(direction || (screens.findIndex((screen) => screen.id === nextScreen) > screens.findIndex((screen) => screen.id === activeScreen) ? "left" : "right"));
+    setActiveScreen(nextScreen);
+    window.setTimeout(() => setSlideDirection(null), 260);
+  }
+
   function moveScreen(delta: number) {
     const index = screens.findIndex((screen) => screen.id === activeScreen);
     const next = screens[index + delta];
     if (next) {
-      setActiveScreen(next.id);
+      switchScreen(next.id, delta > 0 ? "left" : "right");
     }
   }
 
@@ -1052,7 +1063,7 @@ export function DisasterNoteApp() {
       <p className="app-message">{message}</p>
 
       <section className="app-screen" aria-label="安否確認ノート" onTouchStart={handleScreenTouchStart} onTouchEnd={handleScreenTouchEnd}>
-        <div className={activeScreen === "home" ? "screen-page is-active" : "screen-page"} hidden={activeScreen !== "home"}>
+        <div className={activeScreen === "home" ? `screen-page is-active ${slideDirection ? `slide-${slideDirection}` : ""}` : "screen-page"} hidden={activeScreen !== "home"}>
           <section className={dailyJustChecked ? "status-panel daily-check-panel checkin-complete" : "status-panel daily-check-panel"}>
             <p className="panel-label">日常の安否確認</p>
             <h2>{dailyJustChecked ? "今日の安否確認が完了しました" : "無事を家族に残す"}</h2>
@@ -1102,7 +1113,7 @@ export function DisasterNoteApp() {
             </button>
           </section>
 
-          <section className="panel compact-panel">
+          <section className="panel compact-panel review-memo-panel" hidden>
             <p className="panel-label">家族確認メモ</p>
             <h2>{monthlyTaskDone ? "今月の備え確認が完了しています" : "今月、家族で確認すること"}</h2>
             <ul className="compact-list">
@@ -1135,7 +1146,7 @@ export function DisasterNoteApp() {
           </section>
         </div>
 
-        <div className={activeScreen === "family" ? "screen-page is-active" : "screen-page"} hidden={activeScreen !== "family"}>
+        <div className={activeScreen === "family" ? `screen-page is-active ${slideDirection ? `slide-${slideDirection}` : ""}` : "screen-page"} hidden={activeScreen !== "family"}>
           <section className="panel compact-panel family-status-panel">
             <p className="panel-label">家族の状況</p>
             <h2>誰がどの状況か</h2>
@@ -1231,7 +1242,7 @@ export function DisasterNoteApp() {
 
         </div>
 
-        <div className={activeScreen === "emergency" ? "screen-page is-active" : "screen-page"} hidden={activeScreen !== "emergency"}>
+        <div className={activeScreen === "emergency" ? `screen-page is-active ${slideDirection ? `slide-${slideDirection}` : ""}` : "screen-page"} hidden={activeScreen !== "emergency"}>
           <section className="status-panel emergency-panel">
             <p className="panel-label">緊急モード</p>
             <h2>今の状況を送る</h2>
@@ -1352,7 +1363,7 @@ export function DisasterNoteApp() {
           </section>
         </div>
 
-        <div className={activeScreen === "note" ? "screen-page is-active" : "screen-page"} hidden={activeScreen !== "note"}>
+        <div className={activeScreen === "note" ? `screen-page is-active ${slideDirection ? `slide-${slideDirection}` : ""}` : "screen-page"} hidden={activeScreen !== "note"}>
           <section className="panel">
             <p className="panel-label">防災ノート</p>
             <h2>避難場所</h2>
@@ -1419,7 +1430,7 @@ export function DisasterNoteApp() {
           </section>
         </div>
 
-        <div className={activeScreen === "supplies" ? "screen-page is-active" : "screen-page"} hidden={activeScreen !== "supplies"}>
+        <div className={activeScreen === "supplies" ? `screen-page is-active ${slideDirection ? `slide-${slideDirection}` : ""}` : "screen-page"} hidden={activeScreen !== "supplies"}>
           <section className="panel">
             <p className="panel-label">備蓄チェック</p>
             <h2>持ち出し品と備蓄</h2>
@@ -1531,7 +1542,7 @@ export function DisasterNoteApp() {
           </section>
         </div>
 
-        <div className={activeScreen === "settings" ? "screen-page is-active" : "screen-page"} hidden={activeScreen !== "settings"}>
+        <div className={activeScreen === "settings" ? `screen-page is-active ${slideDirection ? `slide-${slideDirection}` : ""}` : "screen-page"} hidden={activeScreen !== "settings"}>
           <section className="panel">
             <p className="panel-label">設定</p>
             <h2>保存と通知</h2>
@@ -1817,7 +1828,7 @@ export function DisasterNoteApp() {
             key={screen.id}
             type="button"
             className={activeScreen === screen.id ? "is-active" : ""}
-            onClick={() => setActiveScreen(screen.id)}
+            onClick={() => switchScreen(screen.id)}
           >
             {screen.label}
           </button>
