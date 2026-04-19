@@ -54,15 +54,15 @@ export const defaultDisasterNoteData: DisasterNoteData = {
     }
   ],
   supplyItems: [
-    { id: "supply-1", name: "飲料水", category: "water", quantity: "1人1日3Lを3日分", expiresAt: "", checked: false },
-    { id: "supply-2", name: "非常食", category: "food", quantity: "3日分", expiresAt: "", checked: false },
-    { id: "supply-3", name: "モバイルバッテリー", category: "battery", quantity: "1台", expiresAt: "", checked: false },
-    { id: "supply-4", name: "常備薬", category: "medicine", quantity: "最低3日分", expiresAt: "", checked: false },
-    { id: "supply-5", name: "懐中電灯", category: "battery", quantity: "1本", expiresAt: "", checked: false },
-    { id: "supply-6", name: "乾電池", category: "battery", quantity: "予備", expiresAt: "", checked: false },
-    { id: "supply-7", name: "携帯トイレ", category: "other", quantity: "家族人数分", expiresAt: "", checked: false },
-    { id: "supply-8", name: "ウェットティッシュ", category: "other", quantity: "1袋", expiresAt: "", checked: false },
-    { id: "supply-9", name: "救急セット", category: "medicine", quantity: "1式", expiresAt: "", checked: false }
+    { id: "supply-1", name: "飲料水", category: "water", quantity: "6", note: "2Lボトル。1人1日3Lを目安", expiresAt: "", checked: false },
+    { id: "supply-2", name: "非常食", category: "food", quantity: "9", note: "食数または袋数。3日分を目安", expiresAt: "", checked: false },
+    { id: "supply-3", name: "モバイルバッテリー", category: "battery", quantity: "1", note: "充電済み", expiresAt: "", checked: false },
+    { id: "supply-4", name: "常備薬", category: "medicine", quantity: "3", note: "日分。薬名は備考に記録", expiresAt: "", checked: false },
+    { id: "supply-5", name: "懐中電灯", category: "battery", quantity: "1", note: "本数", expiresAt: "", checked: false },
+    { id: "supply-6", name: "乾電池", category: "battery", quantity: "8", note: "単三・単四など種類を記録", expiresAt: "", checked: false },
+    { id: "supply-7", name: "携帯トイレ", category: "other", quantity: "15", note: "回数分。家族人数に合わせる", expiresAt: "", checked: false },
+    { id: "supply-8", name: "ウェットティッシュ", category: "other", quantity: "1", note: "袋数", expiresAt: "", checked: false },
+    { id: "supply-9", name: "救急セット", category: "medicine", quantity: "1", note: "一式", expiresAt: "", checked: false }
   ],
   statusLogs: [],
   notificationSettings: {

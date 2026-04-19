@@ -939,9 +939,9 @@ button {
 }
 
 .emergency-panel {
-  gap: 12px;
-  background: #982f38;
-  border-color: #982f38;
+  gap: 8px;
+  background: #7f3440;
+  border-color: #7f3440;
 }
 
 .emergency-actions {
@@ -967,7 +967,7 @@ button {
 }
 
 .emergency-actions .warning-action {
-  color: #982f38;
+  color: #7f3440;
 }
 
 .emergency-actions .quiet-action {
@@ -993,7 +993,38 @@ button {
   padding: 10px;
 }
 
-.message-mode .check-row,
+.emergency-extra-panel {
+  margin-top: 12px;
+}
+
+.emergency-extra-panel .message-mode .check-row {
+  border-color: var(--line);
+  background: #fbfdfc;
+  color: var(--ink);
+}
+
+.emergency-extra-panel .field-label {
+  color: var(--teal);
+}
+
+.emergency-extra-panel select,
+.emergency-extra-panel textarea,
+.emergency-extra-panel input {
+  width: 100%;
+  min-height: 48px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: white;
+  color: var(--ink);
+  padding: 10px 12px;
+}
+
+.emergency-extra-panel textarea {
+  min-height: 112px;
+  resize: vertical;
+  line-height: 1.6;
+}
+
 .location-share-card {
   margin: 0;
   border-color: rgba(255, 255, 255, 0.45);
@@ -1244,12 +1275,30 @@ button {
 
 .supply-main {
   display: grid;
-  gap: 8px;
+  gap: 3px;
   min-width: 0;
 }
 
-.supply-main input,
-.supply-main select {
+.supply-main strong,
+.supply-main span,
+.supply-main small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.supply-main span,
+.supply-main small {
+  color: var(--muted);
+  font-size: 0.88rem;
+}
+
+.supply-editor {
+  gap: 8px;
+}
+
+.supply-editor input,
+.supply-editor select {
   width: 100%;
   min-height: 40px;
   border: 1px solid var(--line);
@@ -1266,8 +1315,9 @@ button {
 
 .quantity-actions {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 6px;
+  margin-top: 5px;
 }
 
 .quantity-actions button {

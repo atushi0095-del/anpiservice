@@ -178,20 +178,20 @@ const supplyLabels: Record<SupplyCategory, string> = {
   other: "その他"
 };
 
-const supplyTemplates: Array<{ name: string; category: SupplyCategory; quantity: string }> = [
-  { name: "飲料水", category: "water", quantity: "1人1日3Lを3日分" },
-  { name: "非常食", category: "food", quantity: "3日分" },
-  { name: "モバイルバッテリー", category: "battery", quantity: "1台以上" },
-  { name: "常備薬", category: "medicine", quantity: "最低3日分" },
-  { name: "懐中電灯", category: "battery", quantity: "1本" },
-  { name: "乾電池", category: "battery", quantity: "予備" },
-  { name: "携帯トイレ", category: "other", quantity: "家族人数分" },
-  { name: "ウェットティッシュ", category: "other", quantity: "1袋" },
-  { name: "救急セット", category: "medicine", quantity: "1式" },
-  { name: "現金・小銭", category: "other", quantity: "必要分" },
-  { name: "身分証コピー", category: "other", quantity: "家族分" },
-  { name: "おむつ・ミルク", category: "baby", quantity: "必要分" },
-  { name: "ペット用品", category: "pet", quantity: "必要分" }
+const supplyTemplates: Array<{ name: string; category: SupplyCategory; quantity: string; note: string }> = [
+  { name: "飲料水", category: "water", quantity: "6", note: "2Lボトル。1人1日3Lを目安" },
+  { name: "非常食", category: "food", quantity: "9", note: "食数または袋数。3日分を目安" },
+  { name: "モバイルバッテリー", category: "battery", quantity: "1", note: "充電済み" },
+  { name: "常備薬", category: "medicine", quantity: "3", note: "日分。薬名は備考に記録" },
+  { name: "懐中電灯", category: "battery", quantity: "1", note: "本数" },
+  { name: "乾電池", category: "battery", quantity: "8", note: "単三・単四など種類を記録" },
+  { name: "携帯トイレ", category: "other", quantity: "15", note: "回数分。家族人数に合わせる" },
+  { name: "ウェットティッシュ", category: "other", quantity: "1", note: "袋数" },
+  { name: "救急セット", category: "medicine", quantity: "1", note: "一式" },
+  { name: "現金・小銭", category: "other", quantity: "1", note: "必要分を備考に記録" },
+  { name: "身分証コピー", category: "other", quantity: "1", note: "家族分" },
+  { name: "おむつ・ミルク", category: "baby", quantity: "1", note: "必要量を備考に記録" },
+  { name: "ペット用品", category: "pet", quantity: "1", note: "必要量を備考に記録" }
 ];
 
 const officialInfoLinks = [
@@ -256,6 +256,28 @@ function createId(prefix: string) {
   return `${prefix}-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
 }
 
+function normalizeSupplyItem(item: SupplyItem): SupplyItem {
+  if (/^\d+$/.test(item.quantity)) {
+    return { ...item, note: item.note || "" };
+  }
+
+  const match = item.quantity.match(/^(\d+)(.*)$/);
+  if (match && Number(match[1]) > 0) {
+    const oldNote = match[2].trim();
+    return {
+      ...item,
+      quantity: match[1],
+      note: item.note || oldNote || item.quantity
+    };
+  }
+
+  return {
+    ...item,
+    quantity: "1",
+    note: item.note || item.quantity
+  };
+}
+
 function loadLocalData(): DisasterNoteData {
   if (typeof window === "undefined") {
     return defaultDisasterNoteData;
@@ -274,7 +296,7 @@ function loadLocalData(): DisasterNoteData {
       supplyItems: [
         ...saved.supplyItems,
         ...defaultDisasterNoteData.supplyItems.filter((item) => !savedSupplyNames.has(item.name))
-      ]
+      ].map(normalizeSupplyItem)
     };
   } catch {
     return defaultDisasterNoteData;
@@ -295,8 +317,10 @@ export function DisasterNoteApp() {
   const [newSupplyName, setNewSupplyName] = useState("");
   const [newSupplyCategory, setNewSupplyCategory] = useState<SupplyCategory>("food");
   const [newSupplyQuantity, setNewSupplyQuantity] = useState("");
+  const [newSupplyNote, setNewSupplyNote] = useState("");
   const [newSupplyExpiresAt, setNewSupplyExpiresAt] = useState("");
   const [selectedSupplyTemplate, setSelectedSupplyTemplate] = useState("");
+  const [editingSupplyId, setEditingSupplyId] = useState<string | null>(null);
   const [newPlaceName, setNewPlaceName] = useState("");
   const [newPlaceAddress, setNewPlaceAddress] = useState("");
   const [emergencyMessage, setEmergencyMessage] = useState(defaultDisasterNoteData.templateMessages[0]);
@@ -491,13 +515,15 @@ export function DisasterNoteApp() {
       id: createId("supply"),
       name: newSupplyName.trim(),
       category: newSupplyCategory,
-      quantity: newSupplyQuantity.trim() || "1",
+      quantity: newSupplyQuantity.trim().replace(/\D/g, "") || "1",
+      note: newSupplyNote.trim(),
       expiresAt: newSupplyExpiresAt,
       checked: false
     };
     updateData({ ...data, supplyItems: [supply, ...data.supplyItems] }, "備蓄品を追加しました。");
     setNewSupplyName("");
     setNewSupplyQuantity("");
+    setNewSupplyNote("");
     setNewSupplyExpiresAt("");
     setSelectedSupplyTemplate("");
   }
@@ -512,6 +538,7 @@ export function DisasterNoteApp() {
     setNewSupplyName(template.name);
     setNewSupplyCategory(template.category);
     setNewSupplyQuantity(template.quantity);
+    setNewSupplyNote(template.note);
   }
 
   function deleteCheckedSupplies() {
@@ -544,23 +571,16 @@ export function DisasterNoteApp() {
   }
 
   function adjustSupplyQuantity(supply: SupplyItem, delta: number) {
-    const match = supply.quantity.match(/^(\d+)(.*)$/);
-    if (!match) {
-      const nextQuantity = delta > 0 ? `${supply.quantity || "1"} +1` : supply.quantity;
-      updateSupply(supply, { quantity: nextQuantity });
-      return;
-    }
-
-    const current = Number(match[1]);
-    const unit = match[2] || "";
+    const current = Number(supply.quantity) || 0;
     const next = Math.max(0, current + delta);
-    updateSupply(supply, { quantity: `${next}${unit}` });
+    updateSupply(supply, { quantity: String(next) });
   }
 
   function resetLocalData() {
     window.localStorage.removeItem(storageKey);
     setData(defaultDisasterNoteData);
     setSupplyDeleteMode(false);
+    setEditingSupplyId(null);
     setResetConfirmOpen(false);
     setMessage("端末内のデータを初期化しました。");
   }
@@ -938,7 +958,6 @@ export function DisasterNoteApp() {
             <div className="metric-grid">
               <button type="button" className="family-status-metric" onClick={() => setFamilyOverviewOpen(true)}>
                 <span>家族の状況</span>
-                <strong>{visibleStatusSummaryItems.length > 0 ? "確認する" : "記録なし"}</strong>
                 <ul className="status-mini-list">
                   {visibleStatusSummaryItems.length > 0 ? (
                     visibleStatusSummaryItems.map((item) => (
@@ -1093,7 +1112,7 @@ export function DisasterNoteApp() {
             <p className="panel-label">緊急モード</p>
             <h2>今の状況を送る</h2>
             <p className="small-copy">
-              まず状況を選び、位置情報を含めるか決めてから送信します。送信後、家族状況と最新の共有に反映されます。
+              状況を選び、必要なら位置情報を含めます。送信後、家族状況に反映されます。
             </p>
             <div className="emergency-actions">
               <button
@@ -1118,11 +1137,6 @@ export function DisasterNoteApp() {
                 返信困難
               </button>
             </div>
-            <p className="emergency-confirmation">
-              {lastEmergencyStatus
-                ? `${statusLabels[lastEmergencyStatus]}を送信済みです。必要ならもう一度送信できます。`
-                : `${statusLabels[selectedEmergencyStatus]}の文面を準備しています。`}
-            </p>
             <div className="auto-message-preview emergency-message-preview">
               <span>送信される内容</span>
               <strong>{buildEmergencyShareText(selectedEmergencyStatus, getEmergencyMessage(selectedEmergencyStatus))}</strong>
@@ -1172,6 +1186,8 @@ export function DisasterNoteApp() {
               </button>
               <button type="button" className="secondary-action" onClick={copyEmergencyText}>共有文をコピー</button>
             </div>
+          </section>
+          <section className="panel compact-panel emergency-extra-panel">
             <div className="message-mode">
               <label className="check-row">
                 <input
@@ -1298,7 +1314,8 @@ export function DisasterNoteApp() {
                     <option key={value} value={value}>{label}</option>
                   ))}
                 </select>
-                <input value={newSupplyQuantity} onChange={(event) => setNewSupplyQuantity(event.target.value)} placeholder="数量" />
+                <input value={newSupplyQuantity} onChange={(event) => setNewSupplyQuantity(event.target.value.replace(/\D/g, ""))} inputMode="numeric" placeholder="数量 例: 6" />
+                <input value={newSupplyNote} onChange={(event) => setNewSupplyNote(event.target.value)} placeholder="備考 例: 2Lボトル、単三電池" />
                 <input value={newSupplyExpiresAt} onChange={(event) => setNewSupplyExpiresAt(event.target.value)} type="date" />
                 <button type="button" onClick={addSupply}>追加</button>
               </div>
@@ -1345,22 +1362,33 @@ export function DisasterNoteApp() {
                         onChange={(event) => updateSupply(item, { checked: event.target.checked })}
                       />
                     ) : null}
-                    <div className="supply-main">
-                      <input value={item.name} onChange={(event) => updateSupply(item, { name: event.target.value })} aria-label="備蓄品名" />
-                      <div className="supply-edit-grid">
-                        <select value={item.category} onChange={(event) => updateSupply(item, { category: event.target.value as SupplyCategory })} aria-label="分類">
-                          {Object.entries(supplyLabels).map(([value, label]) => (
-                            <option key={value} value={value}>{label}</option>
-                          ))}
-                        </select>
-                        <input value={item.quantity} onChange={(event) => updateSupply(item, { quantity: event.target.value })} aria-label="数量" />
-                        <input value={item.expiresAt} onChange={(event) => updateSupply(item, { expiresAt: event.target.value })} type="date" aria-label="消費期限" />
+                    {editingSupplyId === item.id ? (
+                      <div className="supply-main supply-editor">
+                        <input value={item.name} onChange={(event) => updateSupply(item, { name: event.target.value })} aria-label="備蓄品名" />
+                        <div className="supply-edit-grid">
+                          <select value={item.category} onChange={(event) => updateSupply(item, { category: event.target.value as SupplyCategory })} aria-label="分類">
+                            {Object.entries(supplyLabels).map(([value, label]) => (
+                              <option key={value} value={value}>{label}</option>
+                            ))}
+                          </select>
+                          <input value={item.quantity} onChange={(event) => updateSupply(item, { quantity: event.target.value.replace(/\D/g, "") || "0" })} inputMode="numeric" aria-label="数量" />
+                          <input value={item.expiresAt} onChange={(event) => updateSupply(item, { expiresAt: event.target.value })} type="date" aria-label="消費期限" />
+                        </div>
+                        <input value={item.note || ""} onChange={(event) => updateSupply(item, { note: event.target.value })} aria-label="備考" placeholder="備考 例: 2Lボトル、単三電池" />
+                        <button type="button" className="secondary-action" onClick={() => setEditingSupplyId(null)}>編集を閉じる</button>
                       </div>
-                      <div className="quantity-actions">
-                        <button type="button" onClick={() => adjustSupplyQuantity(item, -1)}>-1</button>
-                        <button type="button" onClick={() => adjustSupplyQuantity(item, 1)}>+1</button>
+                    ) : (
+                      <div className="supply-main">
+                        <strong>{item.name}</strong>
+                        <span>{supplyLabels[item.category]} / 数量 {item.quantity}</span>
+                        {item.note ? <small>{item.note}</small> : null}
+                        <div className="quantity-actions">
+                          <button type="button" onClick={() => adjustSupplyQuantity(item, -1)}>-1</button>
+                          <button type="button" onClick={() => adjustSupplyQuantity(item, 1)}>+1</button>
+                          <button type="button" onClick={() => setEditingSupplyId(item.id)}>編集</button>
+                        </div>
                       </div>
-                    </div>
+                    )}
                     <span className={remaining !== null && remaining <= 30 ? "pill warning" : "pill"}>
                       {expiryText}
                     </span>
@@ -1620,7 +1648,7 @@ export function DisasterNoteApp() {
           {data.supplyItems.map((item) => (
             <div className="print-row compact" key={item.id}>
               <strong>{item.name}</strong>
-              <span>{supplyLabels[item.category]} / {item.quantity} / 消費期限: {item.expiresAt || "未設定"}</span>
+              <span>{supplyLabels[item.category]} / 数量 {item.quantity} / {item.note || "備考なし"} / 消費期限: {item.expiresAt || "未設定"}</span>
             </div>
           ))}
         </section>

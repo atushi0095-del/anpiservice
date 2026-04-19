@@ -43,6 +43,7 @@ export type SupplyItem = {
   name: string;
   category: SupplyCategory;
   quantity: string;
+  note?: string;
   expiresAt: string;
   checked: boolean;
 };
