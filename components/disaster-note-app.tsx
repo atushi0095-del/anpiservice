@@ -15,7 +15,7 @@ import type {
   SupplyItem
 } from "@/lib/disaster-types";
 import { hasFirebaseConfig, getFirebaseClients } from "@/lib/firebase";
-import { loadDisasterNoteFromCloud, saveDisasterNoteToCloud } from "@/lib/disaster-store";
+import { loadDisasterNoteFromCloud, saveDisasterNoteToCloud, deleteDisasterNoteFromCloud } from "@/lib/disaster-store";
 import { addFamilyContactViaApi, loadFamilyDashboardViaApi, loadMemberDashboardViaApi, saveCheckInViaApi } from "@/lib/api-store";
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged } from "firebase/auth";
 import type { User } from "firebase/auth";
@@ -383,6 +383,7 @@ export function DisasterNoteApp() {
   const [expiryOverviewOpen, setExpiryOverviewOpen] = useState(false);
   const [reviewOverviewOpen, setReviewOverviewOpen] = useState(false);
   const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
+  const [deleteAccountConfirmOpen, setDeleteAccountConfirmOpen] = useState(false);
   const [supplyDeleteMode, setSupplyDeleteMode] = useState(false);
   const [supplyEditMode, setSupplyEditMode] = useState(false);
   const [deferredInstallPrompt, setDeferredInstallPrompt] = useState<BeforeInstallPromptEvent | null>(null);
@@ -820,14 +821,17 @@ export function DisasterNoteApp() {
     moveScreen(diff < 0 ? 1 : -1);
   }
 
-  function resetLocalData() {
+  async function resetLocalData() {
+    if (cloudUser) {
+      await deleteDisasterNoteFromCloud(cloudUser.uid);
+    }
     window.localStorage.removeItem(storageKey);
     setData(defaultDisasterNoteData);
     setSupplyDeleteMode(false);
     setSupplyEditMode(false);
     setEditingSupplyId(null);
     setResetConfirmOpen(false);
-    setMessage("端末内のデータを初期化しました。");
+    setMessage(cloudUser ? "端末データとクラウドデータを初期化しました。" : "端末内のデータを初期化しました。");
   }
 
   function addPlace() {
@@ -1139,6 +1143,23 @@ export function DisasterNoteApp() {
       setMessage("ログアウトしました。端末内のデータはそのまま残ります。");
     } catch {
       setMessage("ログアウトに失敗しました。");
+    }
+  }
+
+  async function handleDeleteAccount() {
+    if (!cloudUser || !hasFirebaseConfig()) return;
+    try {
+      await deleteDisasterNoteFromCloud(cloudUser.uid);
+      const { auth } = getFirebaseClients();
+      await cloudUser.delete();
+      window.localStorage.removeItem(storageKey);
+      setData(defaultDisasterNoteData);
+      setDeleteAccountConfirmOpen(false);
+      setMessage("退会が完了しました。すべてのデータを削除しました。");
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : "";
+      setDeleteAccountConfirmOpen(false);
+      setMessage(msg.includes("requires-recent-login") ? "再ログインが必要です。一度ログアウトして再度ログインしてから退会してください。" : "退会処理に失敗しました。もう一度お試しください。");
     }
   }
 
@@ -1841,8 +1862,69 @@ export function DisasterNoteApp() {
         </div>
 
         <div className="screen-page" aria-hidden={activeScreen !== "settings"}>
+
+          {hasFirebaseConfig() ? (
+            cloudUser ? (
+              <section className="panel account-panel account-panel--logged-in">
+                <p className="panel-label">アカウント</p>
+                <h2>ログイン中</h2>
+                <p className="account-email">{cloudUser.email}</p>
+                <p className="small-copy">{cloudSyncing ? "同期中…" : cloudSyncedAt ? `最終同期: ${cloudSyncedAt}` : "クラウド同期が有効です"}</p>
+                <div className="cloud-auth-actions">
+                  <button type="button" className="secondary-action" onClick={handleCloudSignOut}>ログアウト</button>
+                  <button type="button" className="danger-button danger-button--subtle" onClick={() => setDeleteAccountConfirmOpen(true)}>退会する</button>
+                </div>
+              </section>
+            ) : (
+              <section className="panel account-panel account-panel--guest">
+                <p className="panel-label">アカウント</p>
+                <h2>{authMode === "login" ? "ログイン" : "新規登録"}</h2>
+                <p className="small-copy">ログインすると、別の端末でもデータを引き継げます。端末のみでも全機能が使えます。</p>
+                <div className="cloud-auth-form">
+                  <input
+                    type="email"
+                    value={authEmail}
+                    onChange={(e) => setAuthEmail(e.target.value)}
+                    placeholder="メールアドレス"
+                    autoComplete="email"
+                  />
+                  <input
+                    type="password"
+                    value={authPassword}
+                    onChange={(e) => setAuthPassword(e.target.value)}
+                    placeholder="パスワード（6文字以上）"
+                    autoComplete={authMode === "register" ? "new-password" : "current-password"}
+                  />
+                  {authMode === "register" ? (
+                    <label className="check-row legal-check-row">
+                      <input
+                        type="checkbox"
+                        checked={guardianConsent}
+                        onChange={(event) => setGuardianConsent(event.target.checked)}
+                      />
+                      <span>18歳以上です。または、保護者の同意を得て利用します。</span>
+                    </label>
+                  ) : null}
+                  {authError ? <p className="auth-error">{authError}</p> : null}
+                  <div className="cloud-auth-actions">
+                    <button type="button" className="wide-action" onClick={handleCloudSignIn}>
+                      {authMode === "login" ? "ログイン" : "新規登録"}
+                    </button>
+                    <button
+                      type="button"
+                      className="secondary-action"
+                      onClick={() => { setAuthMode(authMode === "login" ? "register" : "login"); setAuthError(""); setGuardianConsent(false); }}
+                    >
+                      {authMode === "login" ? "新規登録はこちら" : "ログインに戻る"}
+                    </button>
+                  </div>
+                </div>
+              </section>
+            )
+          ) : null}
+
           <section className="panel">
-            <p className="panel-label">設定</p>
+            <p className="panel-label">通知と同期</p>
             <h2>保存と通知</h2>
             <label className="check-row">
               <input
@@ -1871,56 +1953,6 @@ export function DisasterNoteApp() {
               <span>クラウド同期を使う</span>
             </label>
             <p className="small-copy">端末保存が基本です。クラウド同期を有効にしてログインすると、別の端末でもデータを引き継げます。</p>
-
-            {hasFirebaseConfig() ? (
-              cloudUser ? (
-                <div className="cloud-sync-status">
-                  <p className="small-copy">ログイン中: <strong>{cloudUser.email}</strong>{cloudSyncing ? " · 同期中…" : cloudSyncedAt ? ` · 最終同期 ${cloudSyncedAt}` : ""}</p>
-                  <button type="button" className="secondary-action" onClick={handleCloudSignOut}>ログアウト</button>
-                </div>
-              ) : (
-                <div className="cloud-auth-form">
-                  <p className="small-copy">クラウド同期を使うにはアカウントが必要です。</p>
-                  <input
-                    type="email"
-                    value={authEmail}
-                    onChange={(e) => setAuthEmail(e.target.value)}
-                    placeholder="メールアドレス"
-                    autoComplete="email"
-                  />
-                  <input
-                    type="password"
-                    value={authPassword}
-                    onChange={(e) => setAuthPassword(e.target.value)}
-                    placeholder="パスワード（6文字以上）"
-                    autoComplete={authMode === "register" ? "new-password" : "current-password"}
-                  />
-                  {authMode === "register" ? (
-                    <label className="check-row legal-check-row">
-                      <input
-                        type="checkbox"
-                        checked={guardianConsent}
-                        onChange={(event) => setGuardianConsent(event.target.checked)}
-                      />
-                      <span>18歳以上です。または、保護者の同意を得て利用します。</span>
-                    </label>
-                  ) : null}
-                  {authError ? <p className="auth-error">{authError}</p> : null}
-                  <div className="cloud-auth-actions">
-                    <button type="button" onClick={handleCloudSignIn}>
-                      {authMode === "login" ? "ログイン" : "新規登録"}
-                    </button>
-                    <button
-                      type="button"
-                      className="secondary-action"
-                      onClick={() => { setAuthMode(authMode === "login" ? "register" : "login"); setAuthError(""); setGuardianConsent(false); }}
-                    >
-                      {authMode === "login" ? "新規登録はこちら" : "ログインに戻る"}
-                    </button>
-                  </div>
-                </div>
-              )
-            ) : null}
           </section>
 
           <section className="panel compact-panel">
@@ -1946,14 +1978,14 @@ export function DisasterNoteApp() {
 
           <section className="panel compact-panel">
             <p className="panel-label">データ</p>
-            <h2>削除</h2>
-            <p>この端末に保存した防災ノートを削除します。家族で必要な情報を確認してから実行してください。</p>
+            <h2>データ削除</h2>
+            <p>端末とクラウド両方の防災ノートデータを削除します。家族で内容を確認してから実行してください。元に戻せません。</p>
             <button
               type="button"
               className="danger-button"
               onClick={() => setResetConfirmOpen(true)}
             >
-              端末データを初期化
+              データを初期化する
             </button>
           </section>
 
@@ -2131,14 +2163,30 @@ export function DisasterNoteApp() {
 
       {resetConfirmOpen ? (
         <div className="status-modal-backdrop" role="presentation" onClick={() => setResetConfirmOpen(false)}>
-          <section className="status-modal" role="dialog" aria-modal="true" aria-label="端末データ初期化の確認" onClick={(event) => event.stopPropagation()}>
+          <section className="status-modal" role="dialog" aria-modal="true" aria-label="データ初期化の確認" onClick={(event) => event.stopPropagation()}>
             <p className="panel-label">確認</p>
-            <h2>端末データを初期化しますか？</h2>
-            <p>この端末に保存している家族、連絡先、備蓄、ノートの内容を初期状態に戻します。元に戻せません。</p>
+            <h2>データを初期化しますか？</h2>
+            <p>家族、連絡先、備蓄、ノートを初期状態に戻します。{cloudUser ? "クラウドのデータも同時に削除されます。" : ""}元に戻せません。</p>
             <button type="button" className="danger-button" onClick={resetLocalData}>
               初期化する
             </button>
             <button type="button" className="wide-action" onClick={() => setResetConfirmOpen(false)}>
+              キャンセル
+            </button>
+          </section>
+        </div>
+      ) : null}
+
+      {deleteAccountConfirmOpen ? (
+        <div className="status-modal-backdrop" role="presentation" onClick={() => setDeleteAccountConfirmOpen(false)}>
+          <section className="status-modal" role="dialog" aria-modal="true" aria-label="退会の確認" onClick={(event) => event.stopPropagation()}>
+            <p className="panel-label">退会確認</p>
+            <h2>退会しますか？</h2>
+            <p>アカウントとクラウドに保存した全データを削除します。端末内のデータも消去されます。この操作は元に戻せません。</p>
+            <button type="button" className="danger-button" onClick={handleDeleteAccount}>
+              退会する
+            </button>
+            <button type="button" className="wide-action" onClick={() => setDeleteAccountConfirmOpen(false)}>
               キャンセル
             </button>
           </section>

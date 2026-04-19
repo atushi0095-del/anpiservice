@@ -1,15 +1,22 @@
 :root {
-  --ink: #17211f;
-  --muted: #5a6763;
-  --paper: #f7faf9;
+  --ink: #0f1a18;
+  --muted: #526760;
+  --paper: #f4f8f7;
   --surface: #ffffff;
-  --teal: #147c72;
-  --mint: #dff3ee;
+  --teal: #0d7168;
+  --teal-dark: #095e56;
+  --mint: #d8f0ea;
   --coral: #e95d4f;
   --gold: #f6c453;
-  --green: #2c8f5b;
-  --line: #d8e4df;
-  --shadow: 0 14px 36px rgba(23, 33, 31, 0.12);
+  --green: #1f8050;
+  --line: #d0e2dc;
+  --danger: #b91c1c;
+  --danger-bg: #fef2f2;
+  --shadow-sm: 0 2px 8px rgba(15, 26, 24, 0.08);
+  --shadow: 0 8px 24px rgba(15, 26, 24, 0.12);
+  --shadow-lg: 0 16px 40px rgba(15, 26, 24, 0.16);
+  --radius: 14px;
+  --radius-sm: 10px;
 }
 
 * {
@@ -355,13 +362,13 @@ main {
   z-index: 20;
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 6px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.96);
-  padding: 7px;
-  box-shadow: 0 12px 30px rgba(23, 33, 31, 0.2);
-  backdrop-filter: blur(10px);
+  gap: 5px;
+  border: 1px solid rgba(208, 226, 220, 0.7);
+  border-radius: var(--radius);
+  background: rgba(255, 255, 255, 0.97);
+  padding: 6px;
+  box-shadow: 0 8px 32px rgba(15, 26, 24, 0.22), 0 2px 8px rgba(15, 26, 24, 0.08);
+  backdrop-filter: blur(16px) saturate(1.6);
 }
 
 .bottom-nav.disaster-nav {
@@ -496,7 +503,7 @@ h3 {
 .secondary-link,
 button {
   min-height: 48px;
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   border: 1px solid transparent;
   cursor: pointer;
   font-weight: 700;
@@ -553,7 +560,7 @@ button {
 .status-panel {
   min-height: 280px;
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: var(--radius);
   background: var(--surface);
   padding: clamp(20px, 4vw, 32px);
   box-shadow: var(--shadow);
@@ -1193,16 +1200,18 @@ button {
 
 .emergency-launch {
   margin-top: 6px;
-  background: #7f3440;
-  border-color: #7f3440;
+  background: #b91c1c;
+  border-color: #b91c1c;
   color: #fff;
   font-size: 0.95rem;
-  min-height: 44px;
+  min-height: 48px;
+  box-shadow: 0 4px 14px rgba(185, 28, 28, 0.35);
 }
 
 .emergency-launch:hover {
-  background: #9c3f4f;
-  border-color: #9c3f4f;
+  background: #991b1b;
+  border-color: #991b1b;
+  box-shadow: 0 6px 18px rgba(185, 28, 28, 0.45);
 }
 
 .emergency-back-row {
@@ -1215,17 +1224,18 @@ button {
   color: var(--muted);
   font-size: 0.85rem;
   padding: 6px 14px;
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
 }
 
 .back-to-home:hover {
-  background: var(--bg-surface);
+  background: var(--paper);
 }
 
 .emergency-panel {
   gap: 7px;
-  background: #7f3440;
-  border-color: #7f3440;
+  background: linear-gradient(135deg, #991b1b 0%, #7f1d1d 100%);
+  border-color: #991b1b;
+  box-shadow: 0 8px 28px rgba(153, 27, 27, 0.3), var(--shadow);
 }
 
 .emergency-panel h2 {
@@ -1667,10 +1677,39 @@ button {
 
 .danger-button {
   width: 100%;
-  border-color: #bd5247;
-  background: #bd5247;
+  border-color: var(--danger);
+  background: var(--danger);
   color: white;
   padding: 0 16px;
+  box-shadow: 0 4px 12px rgba(185, 28, 28, 0.25);
+}
+
+.danger-button--subtle {
+  background: var(--danger-bg);
+  border-color: #fecaca;
+  color: var(--danger);
+  box-shadow: none;
+}
+
+.account-panel {
+  min-height: 0;
+}
+
+.account-panel--guest {
+  border: 2px solid var(--teal);
+  background: linear-gradient(135deg, #f0fdf9 0%, #fff 60%);
+}
+
+.account-panel--logged-in {
+  border: 2px solid var(--green);
+  background: linear-gradient(135deg, #f0fdf4 0%, #fff 60%);
+}
+
+.account-email {
+  font-weight: 700;
+  font-size: 1rem;
+  margin: 0 0 4px;
+  color: var(--ink);
 }
 
 .cloud-sync-status {
@@ -1689,6 +1728,7 @@ button {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 8px;
+  margin-top: 8px;
 }
 
 .auth-error {

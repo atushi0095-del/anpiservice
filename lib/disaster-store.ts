@@ -1,4 +1,4 @@
-import { doc, getDoc, setDoc } from "firebase/firestore";
+import { doc, deleteDoc, getDoc, setDoc } from "firebase/firestore";
 import { getFirebaseClients, hasFirebaseConfig } from "@/lib/firebase";
 import type { DisasterNoteData } from "@/lib/disaster-types";
 
@@ -23,5 +23,15 @@ export async function saveDisasterNoteToCloud(uid: string, data: DisasterNoteDat
     await setDoc(doc(db, COLLECTION, uid), data);
   } catch {
     // サイレントフェイル: ローカル保存は常に先に完了している
+  }
+}
+
+export async function deleteDisasterNoteFromCloud(uid: string): Promise<void> {
+  if (!hasFirebaseConfig()) return;
+  try {
+    const { db } = getFirebaseClients();
+    await deleteDoc(doc(db, COLLECTION, uid));
+  } catch {
+    // サイレントフェイル
   }
 }
