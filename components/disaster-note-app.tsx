@@ -59,6 +59,8 @@ const screens: Array<{ id: AppScreen; label: string }> = [
   { id: "supplies", label: "防災備蓄" },
   { id: "settings", label: "設定" }
 ];
+const swipeScreens = screens.filter((screen) => screen.id !== "emergency" && screen.id !== "settings");
+const trackScreens = screens.filter((screen) => screen.id !== "emergency");
 
 const statusLabels: Record<EmergencyStatus, string> = {
   safe: "無事",
@@ -374,6 +376,7 @@ export function DisasterNoteApp() {
   const [useCustomEmergencyMessage, setUseCustomEmergencyMessage] = useState(false);
   const [selectedEmergencyStatus, setSelectedEmergencyStatus] = useState<EmergencyStatus>("safe");
   const [lastEmergencyStatus, setLastEmergencyStatus] = useState<EmergencyStatus | null>(null);
+  const [emergencyPanelOpen, setEmergencyPanelOpen] = useState(false);
   const [reviewJustMarked, setReviewJustMarked] = useState(false);
   const [dailyJustChecked, setDailyJustChecked] = useState(false);
   const [privacyConsent, setPrivacyConsent] = useState(false);
@@ -869,8 +872,12 @@ export function DisasterNoteApp() {
   }
 
   function moveScreen(delta: number) {
-    const index = screens.findIndex((screen) => screen.id === activeScreen);
-    const next = screens[index + delta];
+    const index = swipeScreens.findIndex((screen) => screen.id === activeScreen);
+    if (index === -1) {
+      return;
+    }
+
+    const next = swipeScreens[index + delta];
     if (next) {
       switchScreen(next.id);
     }
@@ -1086,6 +1093,7 @@ export function DisasterNoteApp() {
   function sendEmergencyUpdate() {
     const messageText = getEmergencyMessage(selectedEmergencyStatus);
     recordEmergencyStatus(selectedEmergencyStatus, messageText);
+    setEmergencyPanelOpen(false);
     setMessage(
       `${statusLabels[selectedEmergencyStatus]}をアプリ内に送信しました。家族状況と最新の共有に反映しました。クラウド同期前は、この端末内の記録として保存されます。`
     );
@@ -1368,7 +1376,7 @@ export function DisasterNoteApp() {
       <p className="app-message">{message}</p>
 
       <section className="app-screen" aria-label="安否ノート" onTouchStart={handleScreenTouchStart} onTouchEnd={handleScreenTouchEnd}>
-        <div className="screens-track" style={{ transform: `translateX(${-screens.findIndex((s) => s.id === activeScreen) * 100}%)` }}>
+        <div className="screens-track" style={{ transform: `translateX(${-Math.max(0, trackScreens.findIndex((s) => s.id === activeScreen)) * 100}%)` }}>
         <div className="screen-page" aria-hidden={activeScreen !== "home"}>
           <section className={dailyJustChecked ? "status-panel daily-check-panel checkin-complete" : "status-panel daily-check-panel"}>
             <p className="panel-label">日常の安否確認</p>
@@ -1380,7 +1388,7 @@ export function DisasterNoteApp() {
             >
               無事です
             </button>
-            <button type="button" className="emergency-launch" onClick={() => setActiveScreen("emergency")}>
+            <button type="button" className="emergency-launch" onClick={() => setEmergencyPanelOpen(true)}>
               災害時に送る
             </button>
             <p className="checkin-feedback">
@@ -1616,7 +1624,7 @@ export function DisasterNoteApp() {
 
         </div>
 
-        <div className="screen-page" aria-hidden={activeScreen !== "emergency"}>
+        <div className="screen-page emergency-screen-page" aria-hidden="true">
           <div className="emergency-back-row">
             <button type="button" className="back-to-home" onClick={() => setActiveScreen("home")}>
               ← 通常に戻る
@@ -2076,6 +2084,147 @@ export function DisasterNoteApp() {
         </div>
       </section>
 
+      {emergencyPanelOpen ? (
+        <div className="status-modal-backdrop emergency-panel-backdrop" role="presentation" onClick={() => setEmergencyPanelOpen(false)}>
+          <section className="emergency-sheet" role="dialog" aria-modal="true" aria-label="災害時に送る" onClick={(event) => event.stopPropagation()}>
+            <div className="emergency-sheet-header">
+              <div>
+                <p className="panel-label">災害時に送る</p>
+                <h2>今の状況を家族へ</h2>
+              </div>
+              <button type="button" className="back-to-home" onClick={() => setEmergencyPanelOpen(false)}>
+                閉じる
+              </button>
+            </div>
+            <section className="status-panel emergency-panel">
+              <p className="small-copy">
+                状況を選び、必要なら位置情報を含めます。送信後、家族状況に反映されます。
+              </p>
+              <div className="emergency-actions">
+                <button
+                  type="button"
+                  className={selectedEmergencyStatus === "safe" ? "is-selected" : ""}
+                  onClick={() => chooseEmergencyStatus("safe")}
+                >
+                  無事
+                </button>
+                <button
+                  type="button"
+                  className={`warning-action ${selectedEmergencyStatus === "need_help" ? "is-selected" : ""}`}
+                  onClick={() => chooseEmergencyStatus("need_help")}
+                >
+                  要支援
+                </button>
+                <button
+                  type="button"
+                  className={`quiet-action ${selectedEmergencyStatus === "unavailable" ? "is-selected" : ""}`}
+                  onClick={() => chooseEmergencyStatus("unavailable")}
+                >
+                  返信困難
+                </button>
+              </div>
+              <div className="auto-message-preview emergency-message-preview">
+                <span>送信される内容</span>
+                <strong>{buildEmergencyShareText(selectedEmergencyStatus, getEmergencyMessage(selectedEmergencyStatus))}</strong>
+              </div>
+              <div className="location-share-card">
+                <div>
+                  <p className="panel-label">位置情報</p>
+                  <h3>{emergencyLocationEnabled ? "今回だけ共有文に含める" : "共有しない"}</h3>
+                  <p>
+                    位置共有は初期OFFです。ONを押した時だけ本人のスマホで現在地を取得し、運営サーバーへは送らず、送信する文面にだけ含めます。
+                    <button
+                      type="button"
+                      className="inline-link-button"
+                      onClick={() => {
+                        setEmergencyPanelOpen(false);
+                        setActiveScreen("settings");
+                      }}
+                    >
+                      詳しい説明
+                    </button>
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  className={emergencyLocationEnabled ? "secondary-action is-selected" : "secondary-action"}
+                  onClick={toggleLocationShare}
+                >
+                  {emergencyLocationEnabled ? "位置共有ON" : "現在地を取得してON"}
+                </button>
+              </div>
+              {emergencyLocationEnabled ? (
+                <div className="location-tools">
+                  <input
+                    value={manualLocation}
+                    onChange={(event) => {
+                      setManualLocation(event.target.value);
+                      setLocationMapUrl("");
+                    }}
+                    placeholder="例: 自宅、駅前、避難所名"
+                  />
+                  {locationMapUrl ? (
+                    <a className="map-preview" href={locationMapUrl} target="_blank" rel="noreferrer">
+                      Googleマップで現在地を開く
+                    </a>
+                  ) : (
+                    <p className="small-copy">許可後に現在地が入ります。取得できない場合は手動で場所を入力できます。</p>
+                  )}
+                </div>
+              ) : null}
+              <div className="message-actions">
+                <button type="button" className="wide-action" onClick={sendEmergencyUpdate}>
+                  アプリ内に送信する
+                </button>
+                <button type="button" className="secondary-action" onClick={() => shareEmergencyText(selectedEmergencyStatus)}>
+                  LINE・メールでも送る
+                </button>
+                <button type="button" className="secondary-action" onClick={copyEmergencyText}>共有文をコピー</button>
+              </div>
+            </section>
+            <section className="panel compact-panel emergency-extra-panel">
+              <div className="message-mode">
+                <button
+                  type="button"
+                  className="message-toggle-button"
+                  onClick={() => {
+                    const next = !useCustomEmergencyMessage;
+                    setUseCustomEmergencyMessage(next);
+                    if (!next) {
+                      setEmergencyMessage(statusMessages[selectedEmergencyStatus]);
+                    }
+                  }}
+                >
+                  <span>{useCustomEmergencyMessage ? "-" : "+"}</span>
+                  送る文面を自分で調整する
+                </button>
+              </div>
+              {useCustomEmergencyMessage ? (
+                <div className="custom-message-box">
+                  <label className="field-label" htmlFor="emergency-template-modal">送る文面</label>
+                  <select id="emergency-template-modal" value={emergencyMessage} onChange={(event) => setEmergencyMessage(event.target.value)}>
+                    {Array.from(new Set([...Object.values(statusMessages), ...data.templateMessages])).map((template) => (
+                      <option key={template} value={template}>{template}</option>
+                    ))}
+                  </select>
+                  <textarea value={emergencyMessage} onChange={(event) => setEmergencyMessage(event.target.value)} />
+                  <div className="template-add-form">
+                    <input
+                      value={newTemplateMessage}
+                      onChange={(event) => setNewTemplateMessage(event.target.value)}
+                      placeholder="よく使う文面を追加"
+                    />
+                    <button type="button" onClick={addTemplateMessage}>追加</button>
+                  </div>
+                </div>
+              ) : null}
+              <p className="small-copy">位置情報は常時追跡しません。本人が明示的に操作した時だけ、この端末上で共有文に含めます。運営サーバーへは送信しません。</p>
+              <p className="small-copy">救助や安全を保証するものではありません。必要な場合は公的な窓口や身近な人へ連絡してください。</p>
+            </section>
+          </section>
+        </div>
+      ) : null}
+
       {familyOverviewOpen ? (
         <div className="status-modal-backdrop" role="presentation" onClick={() => setFamilyOverviewOpen(false)}>
           <section className="status-modal" role="dialog" aria-modal="true" aria-label="家族の状況" onClick={(event) => event.stopPropagation()}>
@@ -2294,7 +2443,7 @@ export function DisasterNoteApp() {
       ) : null}
 
       <nav className="bottom-nav disaster-nav" aria-label="画面切り替え">
-        {screens.filter((s) => s.id !== "emergency" && s.id !== "settings").map((screen) => (
+        {swipeScreens.map((screen) => (
           <button
             key={screen.id}
             type="button"

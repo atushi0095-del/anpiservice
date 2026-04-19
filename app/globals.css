@@ -317,6 +317,10 @@ main {
   visibility: visible;
 }
 
+.emergency-screen-page {
+  display: none;
+}
+
 .screen-page > :last-child {
   margin-bottom: 112px;
 }
@@ -1342,6 +1346,34 @@ button {
 
 .emergency-extra-panel .field-label {
   color: var(--teal);
+}
+
+.emergency-panel-backdrop {
+  align-items: end;
+  padding: 10px;
+}
+
+.emergency-sheet {
+  width: min(520px, 100%);
+  max-height: calc(100vh - 24px);
+  overflow-y: auto;
+  border: 1px solid #d7e8e3;
+  border-radius: 8px;
+  background: #f7fbfa;
+  box-shadow: 0 -8px 28px rgba(15, 47, 42, 0.2);
+  padding: 12px;
+}
+
+.emergency-sheet-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.emergency-sheet-header h2 {
+  margin: 0;
 }
 
 .emergency-extra-panel select,
