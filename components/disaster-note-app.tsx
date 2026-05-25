@@ -71,7 +71,7 @@ const screens: Array<{ id: AppScreen; label: string }> = [
   { id: "settings", label: "設定" }
 ];
 const swipeScreens = screens.filter((screen) => screen.id !== "emergency" && screen.id !== "settings");
-const trackScreens = screens.filter((screen) => screen.id !== "emergency");
+const trackScreens = swipeScreens;
 
 const statusLabels: Record<EmergencyStatus, string> = {
   safe: "無事",
@@ -95,6 +95,7 @@ const quickShareDurations = [
   { value: 60, label: "1時間" },
   { value: 180, label: "3時間" }
 ];
+const emergencyShareDurationMinutes = 15;
 
 const dailyCheckInMessage = "今日も無事です。いつも通り過ごしています。";
 const consentStorageKey = "anpi-note-privacy-consent-v1";
@@ -612,6 +613,26 @@ export function DisasterNoteApp() {
     });
     return Array.from(byRecipient.values()).filter((link) => link.active || link.inviteStatus !== "accepted");
   }, [watchLinks]);
+  const connectedTargetSections = useMemo(
+    () =>
+      (["family", "friend"] as ConnectionType[])
+        .map((type) => ({
+          type,
+          items: watchTargets.filter((target) => (target.link.connectionType || "family") === type)
+        }))
+        .filter((section) => section.items.length > 0),
+    [watchTargets]
+  );
+  const inviteSections = useMemo(
+    () =>
+      (["family", "friend"] as ConnectionType[])
+        .map((type) => ({
+          type,
+          items: visibleWatchLinks.filter((link) => (link.connectionType || "family") === type)
+        }))
+        .filter((section) => section.items.length > 0),
+    [visibleWatchLinks]
+  );
   const familyStatusCounts = useMemo(
     () => ({
       safe: familyStatusMembers.filter((member) => member.latestStatus === "safe").length,
@@ -841,7 +862,7 @@ export function DisasterNoteApp() {
         message: shareMessage,
         locationText: mode === "location" ? manualLocation.trim() || undefined : emergencyLocationEnabled ? manualLocation.trim() || undefined : undefined,
         mapUrl: mode === "location" ? locationMapUrl || undefined : emergencyLocationEnabled ? locationMapUrl || undefined : undefined,
-        durationMinutes: quickShareDuration
+        durationMinutes: mode === "location" ? quickShareDuration : emergencyShareDurationMinutes
       });
 
       if (mode === "status") {
@@ -1612,15 +1633,15 @@ export function DisasterNoteApp() {
 
           <section className="panel">
             <p className="panel-label">つながり</p>
-            <h2>家族と友達をつなぐ</h2>
+            <h2>家族と友達を分けてつなぐ</h2>
             <p className="small-copy">
-              家族にも友達にも招待を送れます。相手が承認すると、安否確認や「いまだけ位置共有」を相手ごとに使い分けられます。
+              家族と友達を分けて管理できます。相手が承認すると、安否確認や「いまだけ位置共有」を相手ごとに使い分けられます。
             </p>
             <div className="mutual-watch-card">
               <div>
                 <p className="panel-label">共有の考え方</p>
-                <h3>相手ごとに、つながるだけ</h3>
-                <p>常時位置共有はせず、承認した相手にだけ無事連絡や時間限定の位置共有を送れます。相互につなぐ場合は承認画面で自分も受け取る設定にします。</p>
+                <h3>必要な相手にだけ共有</h3>
+                <p>常時位置共有はせず、承認した相手にだけ無事連絡や時間限定の位置共有を送れます。災害時は現在地を1回だけ添えて送る使い方です。</p>
               </div>
               <button type="button" onClick={() => cloudUser ? refreshWatchConnections(cloudUser) : setActiveScreen("settings")}>
                 {cloudUser ? "つながりを更新" : "ログインして使う"}
@@ -1639,44 +1660,114 @@ export function DisasterNoteApp() {
             </div>
             <div className="connection-list">
               {watchLoading ? <p className="small-copy">つながりを確認中です...</p> : null}
-              {watchTargets.length ? (
-                <section className="connection-group">
-                  <h3>つながっている相手</h3>
-                  {watchTargets.map((target) => (
-                    <article className="connection-row" key={target.link.id}>
-                      <div>
-                        <strong>{target.member.displayName}</strong>
-                        <span>
-                          {connectionTypeLabels[target.link.connectionType || "family"]} /{" "}
-                          {incomingShareBySender.get(target.member.id)?.shareMode === "location"
-                            ? "いまだけ位置共有中"
-                            : target.latestCheckIn
-                              ? `最終確認 ${formatDate(target.latestCheckIn.checkedAt)}`
-                              : "まだ確認記録なし"}
-                        </span>
-                      </div>
-                      <span className="pill success">承認済み</span>
-                    </article>
-                  ))}
-                </section>
+              {connectedTargetSections.length ? (
+                connectedTargetSections.map((section) => (
+                  <section className="connection-group" key={`connected-${section.type}`}>
+                    <h3>つながっている{connectionTypeLabels[section.type]}</h3>
+                    {section.items.map((target) => (
+                      <article className="connection-row" key={target.link.id}>
+                        <div>
+                          <strong>{target.member.displayName}</strong>
+                          <span>
+                            {incomingShareBySender.get(target.member.id)?.shareMode === "location"
+                              ? "いまだけ位置共有中"
+                              : target.latestCheckIn
+                                ? `最終確認 ${formatDate(target.latestCheckIn.checkedAt)}`
+                                : "まだ確認記録なし"}
+                          </span>
+                        </div>
+                        <span className="pill success">承認済み</span>
+                      </article>
+                    ))}
+                  </section>
+                ))
               ) : null}
-              {visibleWatchLinks.length ? (
-                <section className="connection-group">
-                  <h3>招待した相手</h3>
-                  {visibleWatchLinks.map((link) => (
-                    <article className="connection-row" key={link.id}>
-                      <div>
-                        <strong>{link.familyName}</strong>
-                        <span>{connectionTypeLabels[link.connectionType || "family"]} / {link.familyEmail}</span>
-                      </div>
-                      <button type="button" className="secondary-action" onClick={() => shareWatchInvite(link)}>
-                        {link.inviteStatus === "accepted" || link.active ? "再共有" : "招待を送る"}
-                      </button>
-                    </article>
-                  ))}
-                </section>
+              {inviteSections.length ? (
+                inviteSections.map((section) => (
+                  <section className="connection-group" key={`invite-${section.type}`}>
+                    <h3>招待した{connectionTypeLabels[section.type]}</h3>
+                    {section.items.map((link) => (
+                      <article className="connection-row" key={link.id}>
+                        <div>
+                          <strong>{link.familyName}</strong>
+                          <span>{link.familyEmail}</span>
+                        </div>
+                        <button type="button" className="secondary-action" onClick={() => shareWatchInvite(link)}>
+                          {link.inviteStatus === "accepted" || link.active ? "再共有" : "招待を送る"}
+                        </button>
+                      </article>
+                    ))}
+                  </section>
+                ))
               ) : null}
             </div>
+            <details className="fold-panel">
+              <summary>家族メンバーと連絡先を管理する</summary>
+              <div className="fold-panel-body">
+                <div className="family-add-form">
+                  <input value={newMemberName} onChange={(event) => setNewMemberName(event.target.value)} placeholder="名前" />
+                  <input value={newMemberRelation} onChange={(event) => setNewMemberRelation(event.target.value)} placeholder="続柄" />
+                  <input value={newMemberPhone} onChange={(event) => setNewMemberPhone(event.target.value)} placeholder="緊急連絡先" />
+                  <button type="button" onClick={addMember}>追加</button>
+                </div>
+                <div className="family-list">
+                  {data.members.map((member) => (
+                    <article className="family-item family-item-compact disaster-card" key={member.id}>
+                      <div className="family-item-main">
+                        <div>
+                          <h3>{member.name}</h3>
+                          <p>{member.relation} / {member.phone || "連絡先未設定"}</p>
+                        </div>
+                        <span className={`pill ${member.latestStatus === "safe" ? "success" : "warning"}`}>
+                          {getMemberStatusLabel(member)}
+                        </span>
+                      </div>
+                      <details className="member-detail">
+                        <summary>メモ・招待</summary>
+                        <button type="button" className="secondary-action member-share-button" onClick={() => shareFamilyInvite(member)}>
+                          この人へ招待を送る
+                        </button>
+                        <textarea
+                          value={member.notes}
+                          onChange={(event) => updateMember(member, { notes: event.target.value })}
+                          placeholder="注意事項、迎えのルール、連絡の優先順"
+                        />
+                      </details>
+                    </article>
+                  ))}
+                </div>
+                <details className="fold-panel fold-panel-inner" open={data.emergencyContacts.length === 0}>
+                  <summary>連絡先リストを開く</summary>
+                  <div className="fold-panel-body">
+                    <p className="small-copy">親族、学校、かかりつけ医、近所の協力者などを登録できます。</p>
+                    <div className="family-add-form contact-add-form">
+                      <input value={newContactLabel} onChange={(event) => setNewContactLabel(event.target.value)} placeholder="種類 例: 親族" />
+                      <input value={newContactName} onChange={(event) => setNewContactName(event.target.value)} placeholder="名前" />
+                      <input value={newContactPhone} onChange={(event) => setNewContactPhone(event.target.value)} placeholder="電話番号" />
+                      <button type="button" onClick={addEmergencyContact}>追加</button>
+                    </div>
+                    <div className="contact-list compact-supply-list">
+                      {data.emergencyContacts.map((contact) => (
+                        <article className="contact-row" key={contact.id}>
+                          <div className="supply-main">
+                            <strong>{contact.name || "名前未設定"}</strong>
+                            <span>{contact.label || "連絡先"} / {contact.phone || "電話番号未設定"}</span>
+                            <details className="member-detail">
+                              <summary>編集</summary>
+                              <div className="contact-edit-row">
+                                <input value={contact.label} onChange={(event) => updateEmergencyContact(contact, { label: event.target.value })} aria-label="連絡先の種類" />
+                                <input value={contact.name} onChange={(event) => updateEmergencyContact(contact, { name: event.target.value })} aria-label="連絡先名" />
+                                <input value={contact.phone} onChange={(event) => updateEmergencyContact(contact, { phone: event.target.value })} aria-label="電話番号" />
+                              </div>
+                            </details>
+                          </div>
+                        </article>
+                      ))}
+                    </div>
+                  </div>
+                </details>
+              </div>
+            </details>
             <div className="watch-trial-card">
               <div>
                 <p className="panel-label">検証用</p>
@@ -1688,197 +1779,8 @@ export function DisasterNoteApp() {
             <button type="button" className="wide-action family-share-action" onClick={() => shareFamilyInvite()}>
               家族へ招待を送る
             </button>
-            <div className="family-add-form">
-              <input value={newMemberName} onChange={(event) => setNewMemberName(event.target.value)} placeholder="名前" />
-              <input value={newMemberRelation} onChange={(event) => setNewMemberRelation(event.target.value)} placeholder="続柄" />
-              <input value={newMemberPhone} onChange={(event) => setNewMemberPhone(event.target.value)} placeholder="緊急連絡先" />
-              <button type="button" onClick={addMember}>追加</button>
-            </div>
-            <div className="family-list">
-              {data.members.map((member) => (
-                <article className="family-item family-item-compact disaster-card" key={member.id}>
-                  <div className="family-item-main">
-                    <div>
-                      <h3>{member.name}</h3>
-                      <p>{member.relation} / {member.phone || "連絡先未設定"}</p>
-                    </div>
-                    <span className={`pill ${member.latestStatus === "safe" ? "success" : "warning"}`}>
-                      {getMemberStatusLabel(member)}
-                    </span>
-                  </div>
-                  <details className="member-detail">
-                    <summary>メモ・招待</summary>
-                    <button type="button" className="secondary-action member-share-button" onClick={() => shareFamilyInvite(member)}>
-                      この人へ招待を送る
-                    </button>
-                    <textarea
-                      value={member.notes}
-                      onChange={(event) => updateMember(member, { notes: event.target.value })}
-                      placeholder="注意事項、迎えのルール、連絡の優先順"
-                    />
-                  </details>
-                </article>
-              ))}
-            </div>
           </section>
 
-          <section className="panel compact-panel">
-            <p className="panel-label">緊急連絡先</p>
-            <h2>連絡先リスト</h2>
-            <p className="small-copy">親族、学校、かかりつけ医、近所の協力者などを登録できます。</p>
-            <div className="family-add-form contact-add-form">
-              <input value={newContactLabel} onChange={(event) => setNewContactLabel(event.target.value)} placeholder="種類 例: 親族" />
-              <input value={newContactName} onChange={(event) => setNewContactName(event.target.value)} placeholder="名前" />
-              <input value={newContactPhone} onChange={(event) => setNewContactPhone(event.target.value)} placeholder="電話番号" />
-              <button type="button" onClick={addEmergencyContact}>追加</button>
-            </div>
-            <div className="contact-list compact-supply-list">
-              {data.emergencyContacts.map((contact) => (
-                <article className="contact-row" key={contact.id}>
-                  <div className="supply-main">
-                    <strong>{contact.name || "名前未設定"}</strong>
-                    <span>{contact.label || "連絡先"} / {contact.phone || "電話番号未設定"}</span>
-                    <details className="member-detail">
-                      <summary>編集</summary>
-                      <div className="contact-edit-row">
-                        <input value={contact.label} onChange={(event) => updateEmergencyContact(contact, { label: event.target.value })} aria-label="連絡先の種類" />
-                        <input value={contact.name} onChange={(event) => updateEmergencyContact(contact, { name: event.target.value })} aria-label="連絡先名" />
-                        <input value={contact.phone} onChange={(event) => updateEmergencyContact(contact, { phone: event.target.value })} aria-label="電話番号" />
-                      </div>
-                    </details>
-                  </div>
-                </article>
-              ))}
-            </div>
-          </section>
-
-        </div>
-
-        <div className="screen-page emergency-screen-page" aria-hidden="true">
-          <div className="emergency-back-row">
-            <button type="button" className="back-to-home" onClick={() => setActiveScreen("home")}>
-              ← 通常に戻る
-            </button>
-          </div>
-          <section className="status-panel emergency-panel">
-            <p className="panel-label">緊急モード</p>
-            <h2>今の状況を送る</h2>
-            <p className="small-copy">
-              状況を選び、必要なら位置情報を含めます。送信後、家族状況に反映されます。
-            </p>
-            <div className="emergency-actions">
-              <button
-                type="button"
-                className={selectedEmergencyStatus === "safe" ? "is-selected" : ""}
-                onClick={() => chooseEmergencyStatus("safe")}
-              >
-                無事
-              </button>
-              <button
-                type="button"
-                className={`warning-action ${selectedEmergencyStatus === "need_help" ? "is-selected" : ""}`}
-                onClick={() => chooseEmergencyStatus("need_help")}
-              >
-                要支援
-              </button>
-              <button
-                type="button"
-                className={`quiet-action ${selectedEmergencyStatus === "unavailable" ? "is-selected" : ""}`}
-                onClick={() => chooseEmergencyStatus("unavailable")}
-              >
-                返信困難
-              </button>
-            </div>
-            <div className="auto-message-preview emergency-message-preview">
-              <span>送信される内容</span>
-              <strong>{buildEmergencyShareText(selectedEmergencyStatus, getEmergencyMessage(selectedEmergencyStatus))}</strong>
-            </div>
-            <div className="location-share-card">
-              <div>
-                <p className="panel-label">位置情報</p>
-                <h3>{emergencyLocationEnabled ? "今回だけ共有文に含める" : "共有しない"}</h3>
-                <p>
-                  位置共有は初期OFFです。ONを押した時だけ本人のスマホで現在地を取得し、運営サーバーへは送らず、送信する文面にだけ含めます。
-                  <button type="button" className="inline-link-button" onClick={() => setActiveScreen("settings")}>詳しい説明</button>
-                </p>
-              </div>
-              <button
-                type="button"
-                className={emergencyLocationEnabled ? "secondary-action is-selected" : "secondary-action"}
-                onClick={toggleLocationShare}
-              >
-                {emergencyLocationEnabled ? "位置共有ON" : "現在地を取得してON"}
-              </button>
-            </div>
-            {emergencyLocationEnabled ? (
-              <div className="location-tools">
-                <input
-                  value={manualLocation}
-                  onChange={(event) => {
-                    setManualLocation(event.target.value);
-                    setLocationMapUrl("");
-                    setLocationCoords(null);
-                  }}
-                  placeholder="例: 自宅、駅前、避難所名"
-                />
-                {locationMapUrl ? (
-                  <a className="map-preview" href={locationMapUrl} target="_blank" rel="noreferrer">
-                    Googleマップで現在地を開く
-                  </a>
-                ) : (
-                  <p className="small-copy">許可後に現在地が入ります。取得できない場合は手動で場所を入力できます。</p>
-                )}
-              </div>
-            ) : null}
-            <div className="message-actions">
-              <button type="button" className="wide-action" onClick={sendEmergencyUpdate}>
-                アプリ内に送信する
-              </button>
-              <button type="button" className="secondary-action" onClick={() => shareEmergencyText(selectedEmergencyStatus)}>
-                LINE・メールでも送る
-              </button>
-              <button type="button" className="secondary-action" onClick={copyEmergencyText}>共有文をコピー</button>
-            </div>
-          </section>
-          <section className="panel compact-panel emergency-extra-panel">
-            <div className="message-mode">
-              <button
-                type="button"
-                className="message-toggle-button"
-                onClick={() => {
-                  const next = !useCustomEmergencyMessage;
-                  setUseCustomEmergencyMessage(next);
-                  if (!next) {
-                    setEmergencyMessage(statusMessages[selectedEmergencyStatus]);
-                  }
-                }}
-              >
-                <span>{useCustomEmergencyMessage ? "-" : "+"}</span>
-                送る文面を自分で調整する
-              </button>
-            </div>
-            {useCustomEmergencyMessage ? (
-              <div className="custom-message-box">
-                <label className="field-label" htmlFor="emergency-template">送る文面</label>
-                <select id="emergency-template" value={emergencyMessage} onChange={(event) => setEmergencyMessage(event.target.value)}>
-                  {Array.from(new Set([...Object.values(statusMessages), ...data.templateMessages])).map((template) => (
-                    <option key={template} value={template}>{template}</option>
-                  ))}
-                </select>
-                <textarea value={emergencyMessage} onChange={(event) => setEmergencyMessage(event.target.value)} />
-                <div className="template-add-form">
-                  <input
-                    value={newTemplateMessage}
-                    onChange={(event) => setNewTemplateMessage(event.target.value)}
-                    placeholder="よく使う文面を追加"
-                  />
-                  <button type="button" onClick={addTemplateMessage}>追加</button>
-                </div>
-              </div>
-            ) : null}
-              <p className="small-copy">位置情報は常時追跡しません。本人が明示的に操作した時だけ共有に使います。アプリ内送信を選んだ時だけ、共有時間のあいだ一時中継します。</p>
-            <p className="small-copy">救助や安全を保証するものではありません。必要な場合は公的な窓口や身近な人へ連絡してください。</p>
-          </section>
         </div>
 
         <div className="screen-page" aria-hidden={activeScreen !== "note"}>
@@ -2302,7 +2204,7 @@ export function DisasterNoteApp() {
             </div>
             <section className="status-panel emergency-panel">
               <p className="small-copy">
-                状況を選び、必要なら位置情報を含めます。送信後、家族状況に反映されます。
+                状況を選び、必要なら現在地を1回だけ添えて送れます。送信後、家族状況に反映されます。
               </p>
               <div className="recipient-chip-group">
                 {activeConnections.map((link) => (
@@ -2347,9 +2249,9 @@ export function DisasterNoteApp() {
               <div className="location-share-card">
                 <div>
                   <p className="panel-label">位置情報</p>
-                  <h3>{emergencyLocationEnabled ? "今回だけ共有文に含める" : "共有しない"}</h3>
+                  <h3>{emergencyLocationEnabled ? "今回の送信にだけ添える" : "共有しない"}</h3>
                   <p>
-                    位置共有は初期OFFです。ONを押した時だけ本人のスマホで現在地を取得し、運営サーバーへは送らず、送信する文面にだけ含めます。
+                    災害時モードでは時間指定の位置共有は行わず、現在地をこの送信文に1回だけ添えます。
                     <button
                       type="button"
                       className="inline-link-button"
@@ -2367,7 +2269,7 @@ export function DisasterNoteApp() {
                   className={emergencyLocationEnabled ? "secondary-action is-selected" : "secondary-action"}
                   onClick={toggleLocationShare}
                 >
-                  {emergencyLocationEnabled ? "位置共有ON" : "現在地を取得してON"}
+                  {emergencyLocationEnabled ? "現在地を添える" : "現在地を取得して添える"}
                 </button>
               </div>
               {emergencyLocationEnabled ? (
@@ -2394,21 +2296,7 @@ export function DisasterNoteApp() {
                   )}
                 </div>
               ) : null}
-              <div className="quick-share-duration">
-                <span>共有時間</span>
-                <div className="recipient-chip-group compact">
-                  {quickShareDurations.map((option) => (
-                    <button
-                      key={option.value}
-                      type="button"
-                      className={quickShareDuration === option.value ? "recipient-chip is-selected" : "recipient-chip"}
-                      onClick={() => setQuickShareDuration(option.value)}
-                    >
-                      {option.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
+              <p className="small-copy">アプリ内の災害時共有は短時間だけ反映されます。長時間の位置共有を続けたい時は「いまだけ位置共有」を使ってください。</p>
               <div className="message-actions">
                 <button type="button" className={quickShareSending ? "wide-action is-busy" : "wide-action"} onClick={sendEmergencyUpdate} disabled={quickShareSending}>
                   {quickShareSending ? "送信中..." : "アプリ内に送信する"}

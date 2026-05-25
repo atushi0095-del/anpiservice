@@ -958,6 +958,36 @@ button {
   gap: 10px;
 }
 
+.fold-panel {
+  margin-top: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fbfdfc;
+  overflow: hidden;
+}
+
+.fold-panel summary {
+  cursor: pointer;
+  list-style: none;
+  padding: 12px 14px;
+  font-weight: 800;
+  color: var(--teal);
+}
+
+.fold-panel summary::-webkit-details-marker {
+  display: none;
+}
+
+.fold-panel-body {
+  display: grid;
+  gap: 12px;
+  padding: 0 12px 12px;
+}
+
+.fold-panel-inner {
+  margin-top: 0;
+}
+
 .connect-form {
   margin: 12px 0;
 }
