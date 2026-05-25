@@ -1,6 +1,9 @@
 export type UserRole = "member" | "family";
 
 export type CheckInFrequencyDays = 1 | 2 | 3;
+export type ConnectionType = "family" | "friend";
+export type ShareMode = "status" | "location";
+export type ShareStatus = "safe" | "need_help" | "unavailable";
 
 export type UserProfile = {
   id: string;
@@ -27,6 +30,7 @@ export type WatchLink = {
   familyId: string;
   familyName: string;
   familyEmail: string;
+  connectionType?: ConnectionType;
   lineLinkCode: string;
   inviteStatus?: "pending" | "accepted";
   acceptedAt?: string;
@@ -47,6 +51,25 @@ export type FamilyWatchTarget = {
   member: UserProfile;
   latestCheckIn?: CheckIn;
   settings?: NotificationSettings;
+};
+
+export type QuickShare = {
+  id: string;
+  senderId: string;
+  senderName: string;
+  recipientId: string;
+  recipientName: string;
+  connectionId?: string;
+  connectionType?: ConnectionType;
+  shareMode: ShareMode;
+  status?: ShareStatus;
+  message: string;
+  locationText?: string;
+  mapUrl?: string;
+  durationMinutes: number;
+  createdAt: string;
+  expiresAt: string;
+  viewedAt?: string;
 };
 
 export type CheckIn = {

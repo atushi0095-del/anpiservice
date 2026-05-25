@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { TouchEvent, UIEvent } from "react";
@@ -15,11 +15,17 @@ import type {
   SupplyItem
 } from "@/lib/disaster-types";
 import { hasFirebaseConfig, getFirebaseClients } from "@/lib/firebase";
-import { loadDisasterNoteFromCloud, saveDisasterNoteToCloud, deleteDisasterNoteFromCloud } from "@/lib/disaster-store";
-import { addFamilyContactViaApi, loadFamilyDashboardViaApi, loadMemberDashboardViaApi, saveCheckInViaApi } from "@/lib/api-store";
+import {
+  addConnectionViaApi,
+  deleteAccountViaApi,
+  loadFamilyDashboardViaApi,
+  loadMemberDashboardViaApi,
+  saveCheckInViaApi,
+  sendQuickShareViaApi
+} from "@/lib/api-store";
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged } from "firebase/auth";
 import type { User } from "firebase/auth";
-import type { FamilyWatchTarget, WatchLink } from "@/lib/types";
+import type { ConnectionType, FamilyWatchTarget, QuickShare, WatchLink } from "@/lib/types";
 
 type AppScreen = "home" | "family" | "emergency" | "note" | "supplies" | "settings";
 type StatusDialog = EmergencyStatus | "unconfirmed";
@@ -30,6 +36,7 @@ type FamilyStatusView = {
   latestStatus: EmergencyStatus;
   latestStatusAt?: string;
   source: "local" | "cloud";
+  latestShare?: QuickShare;
 };
 type BeforeInstallPromptEvent = Event & {
   prompt: () => Promise<void>;
@@ -40,6 +47,10 @@ type StatusSummaryItem = {
   label: string;
   count: number;
   helper: string;
+};
+type LocationCoords = {
+  latitude: number;
+  longitude: number;
 };
 type ConsentDoc = {
   id: "terms" | "privacy" | "disclaimer";
@@ -53,7 +64,7 @@ const storageKey = "kazoku-bosai-note-v1";
 
 const screens: Array<{ id: AppScreen; label: string }> = [
   { id: "home", label: "確認" },
-  { id: "family", label: "家族共有" },
+  { id: "family", label: "共有相手" },
   { id: "emergency", label: "災害時" },
   { id: "note", label: "防災メモ" },
   { id: "supplies", label: "防災備蓄" },
@@ -73,6 +84,17 @@ const statusMessages: Record<EmergencyStatus, string> = {
   need_help: "支援が必要です。安全な範囲で連絡をください。こちらの状況確認をお願いします。",
   unavailable: "返信が難しい状況です。可能になったら連絡します。"
 };
+
+const connectionTypeLabels: Record<ConnectionType, string> = {
+  family: "家族",
+  friend: "友達"
+};
+
+const quickShareDurations = [
+  { value: 30, label: "30分" },
+  { value: 60, label: "1時間" },
+  { value: 180, label: "3時間" }
+];
 
 const dailyCheckInMessage = "今日も無事です。いつも通り過ごしています。";
 const consentStorageKey = "anpi-note-privacy-consent-v1";
@@ -124,11 +146,11 @@ const consentDocs: ConsentDoc[] = [
       "入力した家族情報や備蓄は、原則このスマホの中だけに保存されます。",
       "位置情報は普段は使いません。緊急時に「現在地を取得」を押した時だけ、共有文に含まれます。",
       "広告への利用、常時追跡、移動履歴の蓄積は一切行いません。",
-      "クラウド同期をONにした場合のみ、サーバーにバックアップされます（任意・後から変更可）。",
+      "防災ノート本文はこの端末に保存します。家族共有に必要な最小限の情報だけ、家族共有のためにサーバーで扱います。",
       "設定画面からいつでもデータを削除できます。"
     ],
     lead:
-      "あんぴノートは、日常の見守りと家族の備えを整理し、必要な時に情報を確認しやすくするために、利用者が入力した情報を取り扱います。端末保存を基本とし、クラウド同期は任意機能です。",
+      "あんぴノートは、日常の見守りと家族の備えを整理し、必要な時に情報を確認しやすくするために、利用者が入力した情報を取り扱います。防災ノート本文は端末保存を基本とし、家族共有に必要な最小限の情報のみサーバーで扱います。",
     sections: [
       {
         heading: "取得する情報",
@@ -148,7 +170,7 @@ const consentDocs: ConsentDoc[] = [
       {
         heading: "保存有無と保存期間",
         body:
-          "位置情報を運営サーバーに保存しません。位置情報は本人の端末上で取得し、本人が送信・コピー・外部共有を行う時だけ共有文に含まれます。端末内に保存した情報は、設定画面から削除できます。"
+          "位置情報は本人の端末上で取得し、本人が送信・コピー・外部共有を行う時だけ共有文に含まれます。アプリ内送信を使う場合は共有時間のあいだだけ一時中継し、履歴として残しません。端末内に保存した情報は、設定画面から削除できます。"
       },
       {
         heading: "第三者提供と外部送信",
@@ -158,7 +180,7 @@ const consentDocs: ConsentDoc[] = [
       {
         heading: "保存先と削除",
         body:
-          "データは主に利用端末内に保存します。設定画面から端末内データを削除できます。クラウド同期を有効にする場合は、同期先、共有範囲、削除方法を画面上で案内します。"
+          "防災ノート本文は利用端末内に保存します。設定画面から端末内データを削除できます。家族共有を使う場合のみ、招待・接続・安否記録などの最小限の情報をサーバーで扱います。"
       },
       {
         heading: "家族共有",
@@ -372,11 +394,13 @@ export function DisasterNoteApp() {
   const [newTemplateMessage, setNewTemplateMessage] = useState("");
   const [manualLocation, setManualLocation] = useState("");
   const [locationMapUrl, setLocationMapUrl] = useState("");
+  const [locationCoords, setLocationCoords] = useState<LocationCoords | null>(null);
   const [emergencyLocationEnabled, setEmergencyLocationEnabled] = useState(false);
   const [useCustomEmergencyMessage, setUseCustomEmergencyMessage] = useState(false);
   const [selectedEmergencyStatus, setSelectedEmergencyStatus] = useState<EmergencyStatus>("safe");
   const [lastEmergencyStatus, setLastEmergencyStatus] = useState<EmergencyStatus | null>(null);
   const [emergencyPanelOpen, setEmergencyPanelOpen] = useState(false);
+  const [quickSharePanelOpen, setQuickSharePanelOpen] = useState(false);
   const [reviewJustMarked, setReviewJustMarked] = useState(false);
   const [dailyJustChecked, setDailyJustChecked] = useState(false);
   const [privacyConsent, setPrivacyConsent] = useState(false);
@@ -402,8 +426,6 @@ export function DisasterNoteApp() {
   const [installingApp, setInstallingApp] = useState(false);
   const [isStandalone, setIsStandalone] = useState(false);
   const [cloudUser, setCloudUser] = useState<User | null>(null);
-  const [cloudSyncing, setCloudSyncing] = useState(false);
-  const [cloudSyncedAt, setCloudSyncedAt] = useState<string | null>(null);
   const [authEmail, setAuthEmail] = useState("");
   const [authPassword, setAuthPassword] = useState("");
   const [authMode, setAuthMode] = useState<"login" | "register">("login");
@@ -411,10 +433,17 @@ export function DisasterNoteApp() {
   const [guardianConsent, setGuardianConsent] = useState(false);
   const [watchName, setWatchName] = useState("");
   const [watchEmail, setWatchEmail] = useState("");
+  const [watchType, setWatchType] = useState<ConnectionType>("family");
   const [watchLinks, setWatchLinks] = useState<WatchLink[]>([]);
   const [watchTargets, setWatchTargets] = useState<FamilyWatchTarget[]>([]);
+  const [incomingShares, setIncomingShares] = useState<QuickShare[]>([]);
   const [watchLoading, setWatchLoading] = useState(false);
   const [watchAdding, setWatchAdding] = useState(false);
+  const [selectedRecipientIds, setSelectedRecipientIds] = useState<string[]>([]);
+  const [selectedQuickShareStatus, setSelectedQuickShareStatus] = useState<EmergencyStatus>("safe");
+  const [quickShareMessage, setQuickShareMessage] = useState("今いる場所を共有します。");
+  const [quickShareDuration, setQuickShareDuration] = useState(60);
+  const [quickShareSending, setQuickShareSending] = useState(false);
   const touchStartX = useRef<number | null>(null);
 
   useEffect(() => {
@@ -433,17 +462,6 @@ export function DisasterNoteApp() {
         return;
       }
       refreshWatchConnections(user);
-      if (user && local.notificationSettings.syncEnabled) {
-        const cloud = await loadDisasterNoteFromCloud(user.uid);
-        if (cloud) {
-          const localTime = new Date(local.lastReviewedAt || 0).getTime();
-          const cloudTime = new Date(cloud.lastReviewedAt || 0).getTime();
-          if (cloudTime > localTime) {
-            setData(cloud);
-            window.localStorage.setItem(storageKey, JSON.stringify(cloud));
-          }
-        }
-      }
     });
     return () => unsubscribe();
   }, []);
@@ -535,17 +553,32 @@ export function DisasterNoteApp() {
     });
     return Array.from(groups.entries()).map(([owner, items]) => ({ owner, items }));
   }, [data.supplyItems]);
+  const activeConnections = useMemo(
+    () => watchLinks.filter((link) => link.active && link.inviteStatus === "accepted"),
+    [watchLinks]
+  );
+  const incomingShareBySender = useMemo(() => {
+    const latest = new Map<string, QuickShare>();
+    incomingShares.forEach((share) => {
+      const current = latest.get(share.senderId);
+      if (!current || new Date(current.createdAt).getTime() < new Date(share.createdAt).getTime()) {
+        latest.set(share.senderId, share);
+      }
+    });
+    return latest;
+  }, [incomingShares]);
   const cloudWatchMembers = useMemo<FamilyStatusView[]>(
     () =>
       watchTargets.map((target) => ({
         id: `cloud-${target.member.id}`,
         name: target.member.displayName || target.member.email || "見守り相手",
-        relation: "家族共有",
-        latestStatus: target.latestCheckIn ? "safe" : "unavailable",
-        latestStatusAt: target.latestCheckIn?.checkedAt || "",
+        relation: connectionTypeLabels[target.link.connectionType || "family"],
+        latestStatus: incomingShareBySender.get(target.member.id)?.status || (target.latestCheckIn ? "safe" : "unavailable"),
+        latestStatusAt: incomingShareBySender.get(target.member.id)?.createdAt || target.latestCheckIn?.checkedAt || "",
+        latestShare: incomingShareBySender.get(target.member.id),
         source: "cloud"
       })),
-    [watchTargets]
+    [incomingShareBySender, watchTargets]
   );
   const familyStatusMembers = useMemo<FamilyStatusView[]>(
     () => [
@@ -589,7 +622,7 @@ export function DisasterNoteApp() {
     [familyStatusMembers]
   );
   const familyStatusSummary =
-    familyStatusMembers.length === 0 ? "家族未登録" : `${familyStatusMembers.length}人の状況を見る`;
+    familyStatusMembers.length === 0 ? "共有相手がまだいません" : `${familyStatusMembers.length}人の状況を見る`;
   const statusSummaryItems: StatusSummaryItem[] = [
     {
       id: "safe",
@@ -637,12 +670,12 @@ export function DisasterNoteApp() {
       : familyStatusMembers.filter((member) => member.latestStatus === status && (status !== "unavailable" || member.latestStatusAt));
   const statusDialogTitle =
     statusDialog === "safe"
-      ? "無事の家族"
+      ? "無事の相手"
       : statusDialog === "need_help"
-        ? "要支援の家族"
+        ? "要支援の相手"
         : statusDialog === "unavailable"
-          ? "返信困難の家族"
-          : "未確認の家族";
+          ? "返信困難の相手"
+          : "未確認の相手";
 
   function getMemberStatusLabel(member: Pick<FamilyStatusView, "latestStatus" | "latestStatusAt">) {
     if (member.latestStatus === "unavailable" && !member.latestStatusAt) {
@@ -652,16 +685,21 @@ export function DisasterNoteApp() {
     return statusLabels[member.latestStatus];
   }
 
+  function getMemberStatusDetail(member: FamilyStatusView) {
+    if (member.latestShare?.shareMode === "location") {
+      return "いまだけ位置共有中";
+    }
+
+    if (member.latestStatusAt) {
+      return formatDate(member.latestStatusAt);
+    }
+
+    return "まだ記録がありません";
+  }
+
   function updateData(next: DisasterNoteData, nextMessage = "保存しました。") {
     setData(next);
     setMessage(nextMessage);
-    if (cloudUser && next.notificationSettings.syncEnabled) {
-      setCloudSyncing(true);
-      saveDisasterNoteToCloud(cloudUser.uid, next).then(() => {
-        setCloudSyncedAt(new Date().toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" }));
-        setCloudSyncing(false);
-      }).catch(() => setCloudSyncing(false));
-    }
   }
 
   function createWatchInviteUrl(link: WatchLink) {
@@ -683,6 +721,10 @@ export function DisasterNoteApp() {
       ]);
       setWatchLinks(memberDashboard.watchLinks);
       setWatchTargets(targets);
+      setIncomingShares(memberDashboard.incomingShares || []);
+      setSelectedRecipientIds((current) =>
+        current.length ? current : memberDashboard.watchLinks.filter((link) => link.active).slice(0, 1).map((link) => link.familyId)
+      );
     } catch {
       setMessage("相互見守りの情報を読み込めませんでした。通信状態を確認してください。");
     } finally {
@@ -692,11 +734,12 @@ export function DisasterNoteApp() {
 
   async function shareWatchInvite(link: WatchLink) {
     const inviteUrl = createWatchInviteUrl(link);
-    const text = `${link.familyName}さんへ\nあんぴノートでつながる招待です。リンクを開いて承認してください。\n${inviteUrl}`;
+    const partnerLabel = connectionTypeLabels[link.connectionType || "family"];
+    const text = `${link.familyName}さんへ\nあんぴノートで${partnerLabel}としてつながる招待です。リンクを開いて承認してください。\n${inviteUrl}`;
     if (navigator.share) {
       try {
         await navigator.share({ title: "あんぴノートでつながる", text, url: inviteUrl });
-        setMessage("招待を共有しました。相手が承認すると見守りに追加されます。");
+        setMessage(`招待を共有しました。相手が承認すると${partnerLabel}としてつながります。`);
         return;
       } catch {
         setMessage("共有を中止しました。必要なら招待リンクをコピーして送れます。");
@@ -725,16 +768,95 @@ export function DisasterNoteApp() {
 
     setWatchAdding(true);
     try {
-      const link = await addFamilyContactViaApi(cloudUser, watchName.trim(), watchEmail.trim());
+      const link = await addConnectionViaApi(cloudUser, watchName.trim(), watchEmail.trim(), watchType);
       setWatchLinks((current) => [link, ...current]);
       setWatchName("");
       setWatchEmail("");
-      setMessage("招待を作成しました。リンクを送って相手に承認してもらってください。");
+      setMessage(`${connectionTypeLabels[watchType]}への招待を作成しました。リンクを送って承認してもらってください。`);
       await shareWatchInvite(link);
     } catch {
       setMessage("招待の作成に失敗しました。ログイン状態と通信環境を確認してください。");
     } finally {
       setWatchAdding(false);
+    }
+  }
+
+  function toggleRecipientSelection(recipientId: string) {
+    setSelectedRecipientIds((current) =>
+      current.includes(recipientId) ? current.filter((id) => id !== recipientId) : [...current, recipientId]
+    );
+  }
+
+  function openQuickLocationShare() {
+    setQuickSharePanelOpen(true);
+    setQuickShareMessage("今いる場所を共有します。");
+    setQuickShareDuration(60);
+    if (!emergencyLocationEnabled) {
+      setEmergencyLocationEnabled(true);
+      setMessage("いまだけ位置共有を準備しています。現在地の取得許可を確認してください。");
+      fillCurrentLocation();
+    }
+  }
+
+  function getLocationEmbedUrl() {
+    if (!locationCoords) {
+      return "";
+    }
+
+    const { latitude, longitude } = locationCoords;
+    const delta = 0.01;
+    return `https://www.openstreetmap.org/export/embed.html?bbox=${longitude - delta}%2C${latitude - delta}%2C${longitude + delta}%2C${latitude + delta}&layer=mapnik&marker=${latitude}%2C${longitude}`;
+  }
+
+  async function sendQuickShare(mode: "status" | "location", status: EmergencyStatus, closePanel?: () => void) {
+    if (!cloudUser) {
+      setMessage("共有相手へ送るには、先に設定画面でログインしてください。");
+      setActiveScreen("settings");
+      return;
+    }
+
+    if (!selectedRecipientIds.length) {
+      setMessage("送る相手を1人以上選んでください。");
+      return;
+    }
+
+    const shareMessage = (mode === "location" ? quickShareMessage : getEmergencyMessage(status)).trim();
+    if (!shareMessage) {
+      setMessage("送る内容を入力してください。");
+      return;
+    }
+
+    if (mode === "location" && !manualLocation.trim() && !locationMapUrl) {
+      setMessage("先に現在地を取得してください。");
+      return;
+    }
+
+    setQuickShareSending(true);
+    try {
+      await sendQuickShareViaApi(cloudUser, {
+        recipientIds: selectedRecipientIds,
+        connectionIds: activeConnections.filter((link) => selectedRecipientIds.includes(link.familyId)).map((link) => link.id),
+        shareMode: mode,
+        status: mode === "status" ? status : selectedQuickShareStatus,
+        message: shareMessage,
+        locationText: mode === "location" ? manualLocation.trim() || undefined : emergencyLocationEnabled ? manualLocation.trim() || undefined : undefined,
+        mapUrl: mode === "location" ? locationMapUrl || undefined : emergencyLocationEnabled ? locationMapUrl || undefined : undefined,
+        durationMinutes: quickShareDuration
+      });
+
+      if (mode === "status") {
+        recordEmergencyStatus(status, shareMessage);
+      }
+
+      await refreshWatchConnections(cloudUser);
+      setMessage(mode === "location" ? "いまだけ位置共有を送りました。" : `${statusLabels[status]}を共有しました。`);
+      closePanel?.();
+      setQuickSharePanelOpen(false);
+      setEmergencyPanelOpen(false);
+    } catch {
+      setMessage("共有の送信に失敗しました。通信状態を確認してください。");
+    } finally {
+      setQuickShareSending(false);
     }
   }
 
@@ -903,16 +1025,10 @@ export function DisasterNoteApp() {
   }
 
   async function resetLocalData() {
-    if (cloudUser) {
-      await deleteDisasterNoteFromCloud(cloudUser.uid);
-    }
     window.localStorage.removeItem(storageKey);
     setData(defaultDisasterNoteData);
-    setSupplyDeleteMode(false);
-    setSupplyEditMode(false);
-    setEditingSupplyId(null);
     setResetConfirmOpen(false);
-    setMessage(cloudUser ? "端末データとクラウドデータを初期化しました。" : "端末内のデータを初期化しました。");
+    setMessage(cloudUser ? "端末内のデータを初期化しました。ログイン中の家族共有はそのまま使えます。" : "端末内のデータを初期化しました。");
   }
 
   function addPlace() {
@@ -1090,19 +1206,14 @@ export function DisasterNoteApp() {
       .catch(() => setMessage(`${statusLabels[status]}を記録しました。画面の文面を手動で送ってください。`));
   }
 
-  function sendEmergencyUpdate() {
-    const messageText = getEmergencyMessage(selectedEmergencyStatus);
-    recordEmergencyStatus(selectedEmergencyStatus, messageText);
-    setEmergencyPanelOpen(false);
-    setMessage(
-      `${statusLabels[selectedEmergencyStatus]}をアプリ内に記録しました。家族の状況に反映しました。クラウド同期を使っていない場合は、この端末内の記録として保存されます。`
-    );
+  async function sendEmergencyUpdate() {
+    await sendQuickShare("status", selectedEmergencyStatus, () => setEmergencyPanelOpen(false));
   }
 
   function shareFamilyInvite(member?: HouseholdMember) {
     const targetName = member?.name ? `${member.name}さん` : "家族";
     const origin = typeof window !== "undefined" ? window.location.origin : "https://anpinote.vercel.app";
-    const text = `${targetName}へ\n安否ノートで家族の連絡先、避難場所、備蓄、緊急時の安否共有を一緒に確認しましょう。\n${origin}\n\n※端末保存を基本に、設定からクラウド同期も利用できます。`;
+    const text = `${targetName}へ\n安否ノートで家族の連絡先、避難場所、備蓄、緊急時の安否共有を一緒に確認しましょう。\n${origin}\n\n※防災ノート本文は各端末に保存されます。家族共有を使う場合のみ、接続と安否記録の最小限の情報をサーバーで扱います。`;
 
     if (navigator.share) {
       navigator
@@ -1132,6 +1243,7 @@ export function DisasterNoteApp() {
         const mapUrl = `https://www.google.com/maps?q=${latitude.toFixed(5)},${longitude.toFixed(5)}`;
         setManualLocation(locationText);
         setLocationMapUrl(mapUrl);
+        setLocationCoords({ latitude, longitude });
         setMessage("現在地を入力しました。共有文にGoogleマップで開ける地図リンクを含めます。常時追跡や履歴保存は行いません。");
       },
       () => setMessage("現在地を取得できませんでした。許可設定を確認するか、場所を手動で入力してください。"),
@@ -1144,6 +1256,7 @@ export function DisasterNoteApp() {
       setEmergencyLocationEnabled(false);
       setManualLocation("");
       setLocationMapUrl("");
+      setLocationCoords(null);
       setMessage("今回の位置共有をOFFにしました。");
       return;
     }
@@ -1209,7 +1322,7 @@ export function DisasterNoteApp() {
       }
       setAuthEmail("");
       setAuthPassword("");
-      setMessage("クラウドアカウントにログインしました。同期を有効にするとデータが自動でバックアップされます。");
+      setMessage("ログインしました。家族共有と安否反映に必要な接続を利用できます。防災ノート本文はこの端末に保存されます。");
     } catch (error) {
       const msg = error instanceof Error ? error.message : "エラーが発生しました";
       setAuthError(msg.includes("wrong-password") || msg.includes("invalid-credential") ? "メールアドレスまたはパスワードが違います。" : msg.includes("email-already-in-use") ? "このメールアドレスはすでに登録済みです。" : "ログインに失敗しました。入力内容を確認してください。");
@@ -1221,7 +1334,6 @@ export function DisasterNoteApp() {
     try {
       const { auth } = getFirebaseClients();
       await signOut(auth);
-      setCloudSyncedAt(null);
       setMessage("ログアウトしました。端末内のデータはそのまま残ります。");
     } catch {
       setMessage("ログアウトに失敗しました。");
@@ -1229,19 +1341,21 @@ export function DisasterNoteApp() {
   }
 
   async function handleDeleteAccount() {
-    if (!cloudUser || !hasFirebaseConfig()) return;
+    if (!cloudUser) return;
     try {
-      await deleteDisasterNoteFromCloud(cloudUser.uid);
+      await deleteAccountViaApi(cloudUser);
       const { auth } = getFirebaseClients();
-      await cloudUser.delete();
+      await signOut(auth);
       window.localStorage.removeItem(storageKey);
       setData(defaultDisasterNoteData);
+      setWatchLinks([]);
+      setWatchTargets([]);
       setDeleteAccountConfirmOpen(false);
-      setMessage("退会が完了しました。すべてのデータを削除しました。");
+      setMessage("アカウントと家族共有データを削除しました。端末内のデータも初期化しました。");
     } catch (error) {
       const msg = error instanceof Error ? error.message : "";
       setDeleteAccountConfirmOpen(false);
-      setMessage(msg.includes("requires-recent-login") ? "再ログインが必要です。一度ログアウトして再度ログインしてから退会してください。" : "退会処理に失敗しました。もう一度お試しください。");
+      setMessage(msg.includes("requires-recent-login") ? "安全確認のため、いったんログアウトしてから再度ログインし、もう一度お試しください。" : "アカウント削除に失敗しました。もう一度お試しください。");
     }
   }
 
@@ -1388,11 +1502,16 @@ export function DisasterNoteApp() {
             >
               無事です
             </button>
-            <button type="button" className="emergency-launch" onClick={() => setEmergencyPanelOpen(true)}>
-              災害時に送る
+            <button type="button" className="emergency-launch" onClick={openQuickLocationShare}>
+              いまだけ位置共有
+            </button>
+            <button type="button" className="secondary-action emergency-open-button" onClick={() => setEmergencyPanelOpen(true)}>
+              災害時モードを開く
             </button>
             <p className="checkin-feedback">
-              {dailyJustChecked ? `最終安否確認: ${formatDate(data.members[0]?.latestStatusAt || data.statusLogs[0]?.createdAt || "")}` : "日常でも、急いで無事だけ伝えたい時でも使えます。下の人数表示にも反映されます。"}
+              {dailyJustChecked
+                ? `最終安否確認: ${formatDate(data.members[0]?.latestStatusAt || data.statusLogs[0]?.createdAt || "")}`
+                : "日常の無事連絡、いまだけ位置共有、災害時の送信をここから使い分けられます。"}
             </p>
           </section>
 
@@ -1407,7 +1526,7 @@ export function DisasterNoteApp() {
             ) : null}
             <div className="metric-grid">
               <button type="button" className="family-status-metric" onClick={() => setFamilyOverviewOpen(true)}>
-                <span>家族の状況</span>
+                <span>つながりの状況</span>
                 <ul className="status-mini-list">
                   {visibleStatusSummaryItems.length > 0 ? (
                     visibleStatusSummaryItems.map((item) => (
@@ -1469,14 +1588,14 @@ export function DisasterNoteApp() {
 
         <div className="screen-page" aria-hidden={activeScreen !== "family"}>
           <section className="panel compact-panel family-status-panel">
-            <p className="panel-label">家族の状況</p>
-            <h2>誰がどの状況か</h2>
+            <p className="panel-label">共有相手の状況</p>
+            <h2>家族と友達の最新状況</h2>
             <div className="member-status-list">
               {familyStatusMembers.map((member) => (
                 <article className="member-status-row" key={member.id}>
                   <div>
                     <strong>{member.name}</strong>
-                    <span>{member.relation} / {member.latestStatusAt ? formatDate(member.latestStatusAt) : "まだ記録なし"}</span>
+                    <span>{member.relation} / {getMemberStatusDetail(member)}</span>
                   </div>
                   <button
                     type="button"
@@ -1492,22 +1611,26 @@ export function DisasterNoteApp() {
           </section>
 
           <section className="panel">
-            <p className="panel-label">家族</p>
-            <h2>家族メンバー</h2>
+            <p className="panel-label">つながり</p>
+            <h2>家族と友達をつなぐ</h2>
             <p className="small-copy">
-              家族を追加したら、招待をLINEやメールで送れます。相手が承認すると、家族の安否確認をお互いに確認できます。
+              家族にも友達にも招待を送れます。相手が承認すると、安否確認や「いまだけ位置共有」を相手ごとに使い分けられます。
             </p>
             <div className="mutual-watch-card">
               <div>
-                <p className="panel-label">家族共有</p>
-                <h3>家族と共有する</h3>
-                <p>相手に招待リンクを送り、承認されるとお互いの安否確認を見られます。相互に見守る場合は承認画面で「自分も相手に見守ってもらう」を選びます。</p>
+                <p className="panel-label">共有の考え方</p>
+                <h3>相手ごとに、つながるだけ</h3>
+                <p>常時位置共有はせず、承認した相手にだけ無事連絡や時間限定の位置共有を送れます。相互につなぐ場合は承認画面で自分も受け取る設定にします。</p>
               </div>
               <button type="button" onClick={() => cloudUser ? refreshWatchConnections(cloudUser) : setActiveScreen("settings")}>
                 {cloudUser ? "つながりを更新" : "ログインして使う"}
               </button>
             </div>
             <div className="connect-form">
+              <select value={watchType} onChange={(event) => setWatchType(event.target.value as ConnectionType)} aria-label="つながりの種類">
+                <option value="family">家族としてつなぐ</option>
+                <option value="friend">友達としてつなぐ</option>
+              </select>
               <input value={watchName} onChange={(event) => setWatchName(event.target.value)} placeholder="つながる相手の名前" />
               <input value={watchEmail} onChange={(event) => setWatchEmail(event.target.value)} placeholder="相手のメールアドレス" type="email" />
               <button type="button" className={watchAdding ? "is-busy" : ""} onClick={addWatchInvite} disabled={watchAdding}>
@@ -1518,12 +1641,19 @@ export function DisasterNoteApp() {
               {watchLoading ? <p className="small-copy">つながりを確認中です...</p> : null}
               {watchTargets.length ? (
                 <section className="connection-group">
-                  <h3>見守っている相手</h3>
+                  <h3>つながっている相手</h3>
                   {watchTargets.map((target) => (
                     <article className="connection-row" key={target.link.id}>
                       <div>
                         <strong>{target.member.displayName}</strong>
-                        <span>{target.latestCheckIn ? `最終確認 ${formatDate(target.latestCheckIn.checkedAt)}` : "まだ確認記録なし"}</span>
+                        <span>
+                          {connectionTypeLabels[target.link.connectionType || "family"]} /{" "}
+                          {incomingShareBySender.get(target.member.id)?.shareMode === "location"
+                            ? "いまだけ位置共有中"
+                            : target.latestCheckIn
+                              ? `最終確認 ${formatDate(target.latestCheckIn.checkedAt)}`
+                              : "まだ確認記録なし"}
+                        </span>
                       </div>
                       <span className="pill success">承認済み</span>
                     </article>
@@ -1537,7 +1667,7 @@ export function DisasterNoteApp() {
                     <article className="connection-row" key={link.id}>
                       <div>
                         <strong>{link.familyName}</strong>
-                        <span>{link.familyEmail}</span>
+                        <span>{connectionTypeLabels[link.connectionType || "family"]} / {link.familyEmail}</span>
                       </div>
                       <button type="button" className="secondary-action" onClick={() => shareWatchInvite(link)}>
                         {link.inviteStatus === "accepted" || link.active ? "再共有" : "招待を送る"}
@@ -1687,6 +1817,7 @@ export function DisasterNoteApp() {
                   onChange={(event) => {
                     setManualLocation(event.target.value);
                     setLocationMapUrl("");
+                    setLocationCoords(null);
                   }}
                   placeholder="例: 自宅、駅前、避難所名"
                 />
@@ -1745,7 +1876,7 @@ export function DisasterNoteApp() {
                 </div>
               </div>
             ) : null}
-            <p className="small-copy">位置情報は常時追跡しません。本人が明示的に操作した時だけ、この端末上で共有文に含めます。運営サーバーへは送信しません。</p>
+              <p className="small-copy">位置情報は常時追跡しません。本人が明示的に操作した時だけ共有に使います。アプリ内送信を選んだ時だけ、共有時間のあいだ一時中継します。</p>
             <p className="small-copy">救助や安全を保証するものではありません。必要な場合は公的な窓口や身近な人へ連絡してください。</p>
           </section>
         </div>
@@ -1950,8 +2081,7 @@ export function DisasterNoteApp() {
               <section className="panel account-panel account-panel--logged-in">
                 <p className="panel-label">アカウント</p>
                 <h2>ログイン中</h2>
-                <p className="account-email">{cloudUser.email}</p>
-                <p className="small-copy">{cloudSyncing ? "同期中…" : cloudSyncedAt ? `最終同期: ${cloudSyncedAt}` : "クラウド同期が有効です"}</p>
+                <p className="account-email">{cloudUser.email}</p><p className="small-copy">家族共有の接続に使うアカウントです。防災ノート本文はこの端末に保存されます。</p>
                 <div className="cloud-auth-actions">
                   <button type="button" className="secondary-action" onClick={handleCloudSignOut}>ログアウト</button>
                   <button type="button" className="danger-button danger-button--subtle" onClick={() => setDeleteAccountConfirmOpen(true)}>退会する</button>
@@ -1960,8 +2090,7 @@ export function DisasterNoteApp() {
             ) : (
               <section className="panel account-panel account-panel--guest">
                 <p className="panel-label">アカウント</p>
-                <h2>{authMode === "login" ? "ログイン" : "新規登録"}</h2>
-                <p className="small-copy">ログインすると、別の端末でもデータを引き継げます。端末のみでも全機能が使えます。</p>
+                <h2>{authMode === "login" ? "ログイン" : "新規登録"}</h2><p className="small-copy">ログインすると家族共有と安否反映を利用できます。防災ノート本文はこの端末に保存されます。</p>
                 <div className="cloud-auth-form">
                   <input
                     type="email"
@@ -2006,35 +2135,10 @@ export function DisasterNoteApp() {
           ) : null}
 
           <section className="panel">
-            <p className="panel-label">通知と同期</p>
-            <h2>保存と通知</h2>
-            <label className="check-row">
-              <input
-                type="checkbox"
-                checked={data.notificationSettings.monthlyReview}
-                onChange={(event) =>
-                  updateData({
-                    ...data,
-                    notificationSettings: { ...data.notificationSettings, monthlyReview: event.target.checked }
-                  })
-                }
-              />
-              <span>月1回の見直しリマインドを使う</span>
-            </label>
-            <label className="check-row">
-              <input
-                type="checkbox"
-                checked={data.notificationSettings.syncEnabled}
-                onChange={(event) =>
-                  updateData({
-                    ...data,
-                    notificationSettings: { ...data.notificationSettings, syncEnabled: event.target.checked }
-                  }, event.target.checked ? "クラウド同期を有効にしました。ログイン済みの場合は自動でバックアップされます。" : "クラウド同期をOFFにしました。")
-                }
-              />
-              <span>クラウド同期を使う</span>
-            </label>
-            <p className="small-copy">端末保存が基本です。クラウド同期を有効にしてログインすると、別の端末でもデータを引き継げます。</p>
+            <p className="panel-label">保存と共有</p>
+            <h2>保存の考え方</h2>
+            <p>防災ノート本文はこの端末に保存します。家族共有を使う時だけ、招待・接続・安否記録の最小限の情報をサーバーで扱います。</p>
+            <p className="small-copy">別の端末へノート本文を自動で引き継ぐクラウド保存は、公開版では提供していません。</p>
           </section>
 
           <section className="panel compact-panel">
@@ -2046,7 +2150,7 @@ export function DisasterNoteApp() {
             </p>
             <p className="small-copy">
               有事画面の位置共有は初期OFFです。本人が「現在地を取得してON」を押した時だけスマホの許可画面が出ます。
-              取得した位置情報は本人の端末上で共有文に入るだけで、運営サーバーへは送信・保存しません。本人が共有文を送信・コピー・外部共有するまで、家族にも共有されません。
+              取得した位置情報は本人の端末上で共有文に入り、アプリ内送信を選んだ時だけ共有時間のあいだ一時中継します。履歴として残したり、分析や広告に使ったりはしません。送信前は相手にも共有されません。
             </p>
             <label className="check-row">
               <input
@@ -2084,6 +2188,106 @@ export function DisasterNoteApp() {
         </div>
       </section>
 
+      {quickSharePanelOpen ? (
+        <div className="status-modal-backdrop emergency-panel-backdrop" role="presentation" onClick={() => setQuickSharePanelOpen(false)}>
+          <section className="emergency-sheet" role="dialog" aria-modal="true" aria-label="いまだけ位置共有" onClick={(event) => event.stopPropagation()}>
+            <div className="emergency-sheet-header">
+              <div>
+                <p className="panel-label">いまだけ位置共有</p>
+                <h2>選んだ相手にだけ送る</h2>
+              </div>
+              <button type="button" className="back-to-home emergency-close-button" onClick={() => setQuickSharePanelOpen(false)}>
+                閉じる
+              </button>
+            </div>
+            <section className="status-panel emergency-panel">
+              <p className="small-copy">常時共有ではなく、今いる場所だけを短時間共有します。共有先は下で選べます。</p>
+              <div className="recipient-chip-group">
+                {activeConnections.map((link) => (
+                  <button
+                    key={link.id}
+                    type="button"
+                    className={selectedRecipientIds.includes(link.familyId) ? "recipient-chip is-selected" : "recipient-chip"}
+                    onClick={() => toggleRecipientSelection(link.familyId)}
+                  >
+                    <strong>{link.familyName}</strong>
+                    <span>{connectionTypeLabels[link.connectionType || "family"]}</span>
+                  </button>
+                ))}
+              </div>
+              <div className="location-share-card location-share-card-strong">
+                <div>
+                  <p className="panel-label">現在地</p>
+                  <h3>{locationMapUrl ? "地図リンクの準備ができました" : "位置情報を取得して送る"}</h3>
+                  <p>ONにした時だけこのスマホで現在地を取得します。送信するまで相手には共有されません。</p>
+                </div>
+                <button
+                  type="button"
+                  className={emergencyLocationEnabled ? "secondary-action is-selected" : "secondary-action"}
+                  onClick={toggleLocationShare}
+                >
+                  {emergencyLocationEnabled ? "位置共有ON" : "現在地を取得してON"}
+                </button>
+              </div>
+              {emergencyLocationEnabled ? (
+                <div className="location-tools">
+                  <input
+                    value={manualLocation}
+                    onChange={(event) => {
+                      setManualLocation(event.target.value);
+                      setLocationMapUrl("");
+                      setLocationCoords(null);
+                    }}
+                    placeholder="例: 駅前のカフェ、学校前、避難所"
+                  />
+                  {locationMapUrl ? (
+                    <>
+                      <div className="map-preview-shell">
+                        <iframe className="map-frame" title="現在地プレビュー" src={getLocationEmbedUrl()} loading="lazy" />
+                      </div>
+                      <a className="map-preview" href={locationMapUrl} target="_blank" rel="noreferrer">
+                        Googleマップで現在地を開く
+                      </a>
+                    </>
+                  ) : (
+                    <p className="small-copy">位置情報が取れない時は、場所を手入力して送れます。</p>
+                  )}
+                </div>
+              ) : null}
+              <div className="custom-message-box compact-message-box">
+                <label className="field-label" htmlFor="quick-share-message">ひとこと</label>
+                <textarea id="quick-share-message" value={quickShareMessage} onChange={(event) => setQuickShareMessage(event.target.value)} />
+              </div>
+              <div className="quick-share-duration">
+                <span>共有時間</span>
+                <div className="recipient-chip-group compact">
+                  {quickShareDurations.map((option) => (
+                    <button
+                      key={option.value}
+                      type="button"
+                      className={quickShareDuration === option.value ? "recipient-chip is-selected" : "recipient-chip"}
+                      onClick={() => setQuickShareDuration(option.value)}
+                    >
+                      {option.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="message-actions">
+                <button
+                  type="button"
+                  className={quickShareSending ? "wide-action is-busy" : "wide-action"}
+                  onClick={() => sendQuickShare("location", selectedQuickShareStatus, () => setQuickSharePanelOpen(false))}
+                  disabled={quickShareSending}
+                >
+                  {quickShareSending ? "送信中..." : "位置を送る"}
+                </button>
+              </div>
+            </section>
+          </section>
+        </div>
+      ) : null}
+
       {emergencyPanelOpen ? (
         <div className="status-modal-backdrop emergency-panel-backdrop" role="presentation" onClick={() => setEmergencyPanelOpen(false)}>
           <section className="emergency-sheet" role="dialog" aria-modal="true" aria-label="災害時に送る" onClick={(event) => event.stopPropagation()}>
@@ -2100,6 +2304,19 @@ export function DisasterNoteApp() {
               <p className="small-copy">
                 状況を選び、必要なら位置情報を含めます。送信後、家族状況に反映されます。
               </p>
+              <div className="recipient-chip-group">
+                {activeConnections.map((link) => (
+                  <button
+                    key={link.id}
+                    type="button"
+                    className={selectedRecipientIds.includes(link.familyId) ? "recipient-chip is-selected" : "recipient-chip"}
+                    onClick={() => toggleRecipientSelection(link.familyId)}
+                  >
+                    <strong>{link.familyName}</strong>
+                    <span>{connectionTypeLabels[link.connectionType || "family"]}</span>
+                  </button>
+                ))}
+              </div>
               <div className="emergency-actions">
                 <button
                   type="button"
@@ -2164,17 +2381,37 @@ export function DisasterNoteApp() {
                     placeholder="例: 自宅、駅前、避難所名"
                   />
                   {locationMapUrl ? (
-                    <a className="map-preview" href={locationMapUrl} target="_blank" rel="noreferrer">
-                      Googleマップで現在地を開く
-                    </a>
+                    <>
+                      <div className="map-preview-shell">
+                        <iframe className="map-frame" title="現在地プレビュー" src={getLocationEmbedUrl()} loading="lazy" />
+                      </div>
+                      <a className="map-preview" href={locationMapUrl} target="_blank" rel="noreferrer">
+                        Googleマップで現在地を開く
+                      </a>
+                    </>
                   ) : (
                     <p className="small-copy">許可後に現在地が入ります。取得できない場合は手動で場所を入力できます。</p>
                   )}
                 </div>
               ) : null}
+              <div className="quick-share-duration">
+                <span>共有時間</span>
+                <div className="recipient-chip-group compact">
+                  {quickShareDurations.map((option) => (
+                    <button
+                      key={option.value}
+                      type="button"
+                      className={quickShareDuration === option.value ? "recipient-chip is-selected" : "recipient-chip"}
+                      onClick={() => setQuickShareDuration(option.value)}
+                    >
+                      {option.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
               <div className="message-actions">
-                <button type="button" className="wide-action" onClick={sendEmergencyUpdate}>
-                  アプリ内に送信する
+                <button type="button" className={quickShareSending ? "wide-action is-busy" : "wide-action"} onClick={sendEmergencyUpdate} disabled={quickShareSending}>
+                  {quickShareSending ? "送信中..." : "アプリ内に送信する"}
                 </button>
                 <button type="button" className="secondary-action" onClick={() => shareEmergencyText(selectedEmergencyStatus)}>
                   LINE・メールでも送る
@@ -2218,7 +2455,7 @@ export function DisasterNoteApp() {
                   </div>
                 </div>
               ) : null}
-              <p className="small-copy">位置情報は常時追跡しません。本人が明示的に操作した時だけ、この端末上で共有文に含めます。運営サーバーへは送信しません。</p>
+              <p className="small-copy">位置情報は常時追跡しません。本人が明示的に操作した時だけ、この端末上で共有文に含めます。アプリ内送信を使う場合も、一時共有のあいだだけ中継用に保持し、備忘や分析には使いません。</p>
               <p className="small-copy">救助や安全を保証するものではありません。必要な場合は公的な窓口や身近な人へ連絡してください。</p>
             </section>
           </section>
@@ -2227,8 +2464,8 @@ export function DisasterNoteApp() {
 
       {familyOverviewOpen ? (
         <div className="status-modal-backdrop" role="presentation" onClick={() => setFamilyOverviewOpen(false)}>
-          <section className="status-modal" role="dialog" aria-modal="true" aria-label="家族の状況" onClick={(event) => event.stopPropagation()}>
-            <p className="panel-label">家族の状況</p>
+          <section className="status-modal" role="dialog" aria-modal="true" aria-label="つながりの状況" onClick={(event) => event.stopPropagation()}>
+            <p className="panel-label">つながりの状況</p>
             <h2>今の状況</h2>
             <div className="status-modal-list">
               {visibleStatusSummaryItems.length > 0 ? (

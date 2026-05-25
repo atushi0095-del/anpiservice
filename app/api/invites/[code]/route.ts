@@ -13,6 +13,7 @@ type WatchLinkRecord = {
   familyId: string;
   familyName: string;
   familyEmail: string;
+  connectionType?: "family" | "friend";
   lineLinkCode: string;
   inviteStatus?: "pending" | "accepted";
   active: boolean;
@@ -54,6 +55,7 @@ export async function GET(_request: NextRequest, context: RouteContext) {
     code,
     familyName: invite.familyName,
     familyEmail: invite.familyEmail,
+    connectionType: invite.connectionType || "family",
     inviteStatus: invite.inviteStatus || (invite.active ? "accepted" : "pending"),
     member: {
       id: invite.memberId,
@@ -132,6 +134,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
         familyId: invite.memberId,
         familyName: member?.displayName || "見守り相手",
         familyEmail: member?.email || "",
+        connectionType: invite.connectionType || "family",
         lineLinkCode: reverseCode,
         inviteStatus: "accepted",
         acceptedAt: now,

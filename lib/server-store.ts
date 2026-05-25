@@ -1,12 +1,22 @@
 import { getAdminDb } from "@/lib/firebase-admin";
 import { createCheckIn } from "@/lib/safety";
-import type { CheckIn, FamilyWatchTarget, NotificationLog, NotificationSettings, UserProfile, WatchLink } from "@/lib/types";
+import type {
+  CheckIn,
+  ConnectionType,
+  FamilyWatchTarget,
+  NotificationLog,
+  NotificationSettings,
+  QuickShare,
+  UserProfile,
+  WatchLink
+} from "@/lib/types";
 
 export type MemberDashboardData = {
   profile: UserProfile;
   settings: NotificationSettings;
   latestCheckIn: CheckIn;
   watchLinks: WatchLink[];
+  incomingShares: QuickShare[];
   logs: NotificationLog[];
 };
 
@@ -51,18 +61,33 @@ function normalizeLog(id: string, data: Omit<NotificationLog, "id">): Notificati
   };
 }
 
+function normalizeQuickShare(id: string, data: Omit<QuickShare, "id">): QuickShare {
+  return {
+    id,
+    ...data,
+    createdAt: dateString(data.createdAt),
+    expiresAt: dateString(data.expiresAt),
+    viewedAt: data.viewedAt ? dateString(data.viewedAt) : undefined
+  };
+}
+
+function isShareActive(share: QuickShare) {
+  return new Date(share.expiresAt).getTime() > Date.now();
+}
+
 export async function loadMemberDashboardAdmin(user: { uid: string; email?: string | null }): Promise<MemberDashboardData> {
   const db = getAdminDb();
   const now = new Date().toISOString();
   const userRef = db.collection("users").doc(user.uid);
   const settingsRef = db.collection("notificationSettings").doc(user.uid);
 
-  const [userSnap, settingsSnap, checkInsSnap, linksSnap, logsSnap] = await Promise.all([
+  const [userSnap, settingsSnap, checkInsSnap, linksSnap, logsSnap, sharesSnap] = await Promise.all([
     userRef.get(),
     settingsRef.get(),
     db.collection("checkIns").where("memberId", "==", user.uid).limit(20).get(),
     db.collection("watchLinks").where("memberId", "==", user.uid).get(),
-    db.collection("notificationLogs").where("memberId", "==", user.uid).limit(20).get()
+    db.collection("notificationLogs").where("memberId", "==", user.uid).limit(20).get(),
+    db.collection("quickShares").where("recipientId", "==", user.uid).limit(40).get()
   ]);
 
   const profile: UserProfile = userSnap.exists
@@ -91,6 +116,11 @@ export async function loadMemberDashboardAdmin(user: { uid: string; email?: stri
     settings,
     latestCheckIn: ensuredCheckIn,
     watchLinks: linksSnap.docs.map((item) => ({ id: item.id, ...(item.data() as Omit<WatchLink, "id">) })),
+    incomingShares: sharesSnap.docs
+      .map((item) => normalizeQuickShare(item.id, item.data() as Omit<QuickShare, "id">))
+      .filter(isShareActive)
+      .sort(byNewestDate<QuickShare>("createdAt"))
+      .slice(0, 20),
     logs: logsSnap.docs
       .map((item) => normalizeLog(item.id, item.data() as Omit<NotificationLog, "id">))
       .sort(byNewestDate<NotificationLog>("createdAt"))
@@ -115,7 +145,12 @@ export async function saveCheckInAdmin(userId: string, checkIn: CheckIn): Promis
   return checkIn;
 }
 
-export async function addFamilyContactAdmin(memberId: string, familyName: string, familyEmail: string): Promise<WatchLink> {
+export async function addFamilyContactAdmin(
+  memberId: string,
+  familyName: string,
+  familyEmail: string,
+  connectionType: ConnectionType = "family"
+): Promise<WatchLink> {
   const db = getAdminDb();
   const createdAt = new Date().toISOString();
   const familyKey = familyEmail.trim().toLowerCase().replace(/[^a-z0-9]/g, "_");
@@ -127,6 +162,7 @@ export async function addFamilyContactAdmin(memberId: string, familyName: string
     familyId: familyKey,
     familyName,
     familyEmail,
+    connectionType,
     lineLinkCode: code,
     inviteStatus: "pending",
     lineLinked: false,

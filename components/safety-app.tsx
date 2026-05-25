@@ -391,7 +391,7 @@ export function SafetyApp() {
     try {
       if (firebaseEnabled && authUser) {
         await saveCheckInViaApi(authUser, next);
-        writeCachedDashboard(authUser.uid, { profile, settings, latestCheckIn: next, watchLinks, logs: nextLogs });
+        writeCachedDashboard(authUser.uid, { profile, settings, latestCheckIn: next, watchLinks, incomingShares: [], logs: nextLogs });
       }
       setMessage(`チェックインを記録しました。最終確認: ${formatJapaneseDateTime(next.checkedAt)}`);
     } catch (error) {
@@ -411,7 +411,7 @@ export function SafetyApp() {
       setMessage("確認リズムを保存しています...");
       try {
         await saveSettingsViaApi(authUser, nextSettings);
-        writeCachedDashboard(authUser.uid, { profile, settings: nextSettings, latestCheckIn: nextCheckIn, watchLinks, logs });
+        writeCachedDashboard(authUser.uid, { profile, settings: nextSettings, latestCheckIn: nextCheckIn, watchLinks, incomingShares: [], logs });
         setMessage("確認リズムを保存しました。");
       } catch (error) {
         setMessage(toAppErrorMessage(error));
@@ -472,7 +472,7 @@ export function SafetyApp() {
       ];
       setLogs(nextLogs);
       if (authUser) {
-        writeCachedDashboard(authUser.uid, { profile, settings, latestCheckIn, watchLinks: nextWatchLinks, logs: nextLogs });
+        writeCachedDashboard(authUser.uid, { profile, settings, latestCheckIn, watchLinks: nextWatchLinks, incomingShares: [], logs: nextLogs });
       }
       setMessage("家族連絡先を追加しました。招待リンクを送れます。");
     } catch (error) {
@@ -490,7 +490,7 @@ export function SafetyApp() {
       const nextWatchLinks = watchLinks.map((item) => (item.id === link.id ? next : item));
       setWatchLinks(nextWatchLinks);
       if (authUser) {
-        writeCachedDashboard(authUser.uid, { profile, settings, latestCheckIn, watchLinks: nextWatchLinks, logs });
+        writeCachedDashboard(authUser.uid, { profile, settings, latestCheckIn, watchLinks: nextWatchLinks, incomingShares: [], logs });
       }
       setMessage("見守りを解除しました。");
     } catch (error) {

@@ -15,6 +15,6 @@ export async function requireUser(request: NextRequest) {
 
 export function apiError(error: unknown) {
   const message = toAppErrorMessage(error);
-  const status = message.includes("ログインが必要") ? 401 : 500;
+  const status = message.includes("ログインが必要です") ? 401 : 500;
   return NextResponse.json({ error: message }, { status });
 }

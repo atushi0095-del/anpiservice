@@ -2,7 +2,7 @@ export function toAuthMessage(error: unknown) {
   const message = error instanceof Error ? error.message : "";
 
   if (message.includes("auth/email-already-in-use")) {
-    return "このメールアドレスは登録済みです。ログインをお試しください。";
+    return "このメールアドレスはすでに登録されています。ログインをお試しください。";
   }
 
   if (message.includes("auth/invalid-email")) {
@@ -18,11 +18,11 @@ export function toAuthMessage(error: unknown) {
   }
 
   if (message.includes("auth/configuration-not-found") || message.includes("auth/operation-not-allowed")) {
-    return "Firebase Authenticationのメール/パスワード認証を有効にしてください。";
+    return "Firebase Authentication の設定を確認してください。";
   }
 
   if (message.includes("auth/too-many-requests")) {
-    return "ログイン試行が多すぎます。少し時間をおいてから再度お試しください。";
+    return "試行回数が多すぎます。少し時間をおいてからもう一度お試しください。";
   }
 
   return message || "認証に失敗しました。";
@@ -36,15 +36,15 @@ export function toAppErrorMessage(error: unknown) {
     message.includes("firestore.googleapis.com") ||
     message.includes("PERMISSION_DENIED")
   ) {
-    return "FirebaseのFirestoreがまだ有効になっていません。Firebaseコンソールの「Firestore Database」を作成し、Vercelを再デプロイしてください。";
+    return "Firebase の Firestore がまだ有効になっていません。Firebase コンソールで Firestore Database を有効化し、数分待ってからもう一度お試しください。";
   }
 
   if (message.includes("invite-error:")) {
-    return message.replace("invite-error:", "").trim() || "招待の承認に失敗しました。";
+    return message.replace("invite-error:", "").trim() || "招待の処理に失敗しました。";
   }
 
   if (message.includes("client is offline") || message.includes("offline") || message.includes("unavailable")) {
-    return "通信できませんでした。インターネット接続を確認し、少し時間をおいてもう一度お試しください。";
+    return "通信できませんでした。インターネット接続を確認し、少し時間をおいてからもう一度お試しください。";
   }
 
   if (message.includes("permission-denied") || message.includes("Missing or insufficient permissions")) {
@@ -56,7 +56,7 @@ export function toAppErrorMessage(error: unknown) {
   }
 
   if (message.includes("Firebase environment variables")) {
-    return "Firebase設定が読み込まれていません。Vercelの環境変数と再デプロイを確認してください。";
+    return "Firebase の設定が不足しています。Vercel の環境変数とデプロイ設定を確認してください。";
   }
 
   return message || "処理に失敗しました。";
