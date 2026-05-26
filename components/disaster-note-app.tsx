@@ -73,7 +73,7 @@ const screens: Array<{ id: AppScreen; label: string }> = [
   { id: "settings", label: "設定" }
 ];
 const swipeScreens = screens.filter((screen) => screen.id !== "emergency" && screen.id !== "settings");
-const trackScreens = swipeScreens;
+const trackScreens = screens.filter((screen) => screen.id !== "emergency");
 
 const statusLabels: Record<EmergencyStatus, string> = {
   safe: "無事",
@@ -1411,7 +1411,7 @@ export function DisasterNoteApp() {
         await deferredInstallPrompt.prompt();
         const choice = await deferredInstallPrompt.userChoice;
         setDeferredInstallPrompt(null);
-        setMessage(choice.outcome === "accepted" ? "ホーム画面に追加しました。" : "ホーム画面追加をキャンセルしました。");
+        setMessage(choice.outcome === "accepted" ? "ホーム画面に追加しました。" : "ホーム画面追加をキャンセルしました。手順が必要なら案内を開けます。");
         if (choice.outcome === "dismissed") {
           setInstallGuideOpen(true);
         }
@@ -1419,7 +1419,7 @@ export function DisasterNoteApp() {
       }
 
       setInstallGuideOpen(true);
-      setMessage("このブラウザでは追加画面を自動表示できません。手順を表示しました。");
+      setMessage("このブラウザでは自動追加できないため、手順を表示しました。");
     } catch {
       setInstallGuideOpen(true);
       setMessage("追加画面を開けませんでした。手順を表示しました。");
@@ -1522,7 +1522,7 @@ export function DisasterNoteApp() {
             ⚙
           </button>
           <button type="button" className={installingApp ? "install-button is-busy" : "install-button"} onClick={handleInstallApp} disabled={installingApp || isStandalone}>
-            {isStandalone ? "追加済み" : installingApp ? "処理中" : "アプリ追加"}
+            {isStandalone ? "追加済み" : installingApp ? "処理中" : deferredInstallPrompt ? "アプリ追加" : "追加方法"}
           </button>
         </div>
       </header>
@@ -2581,11 +2581,15 @@ export function DisasterNoteApp() {
             <div className="install-guide-list">
               <section>
                 <h3>Android Chrome</h3>
-                <p>右上の「︙」を押し、「ホーム画面に追加」または「アプリをインストール」を選びます。</p>
+                <p>この画面で自動追加できない時は、右上の「︙」を押し、「ホーム画面に追加」または「アプリをインストール」を選びます。</p>
               </section>
               <section>
                 <h3>iPhone Safari</h3>
                 <p>下の共有ボタンを押し、「ホーム画面に追加」を選びます。</p>
+              </section>
+              <section>
+                <h3>うまく出ない時</h3>
+                <p>ChromeやSafariで開き直すと、追加メニューが出やすくなります。アプリ内ブラウザでは追加できない場合があります。</p>
               </section>
               <section>
                 <h3>すでに追加済みの場合</h3>
