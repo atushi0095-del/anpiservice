@@ -411,7 +411,6 @@ export function DisasterNoteApp() {
   const [selectedEmergencyStatus, setSelectedEmergencyStatus] = useState<EmergencyStatus>("safe");
   const [lastEmergencyStatus, setLastEmergencyStatus] = useState<EmergencyStatus | null>(null);
   const [emergencyPanelOpen, setEmergencyPanelOpen] = useState(false);
-  const [quickSharePanelOpen, setQuickSharePanelOpen] = useState(false);
   const [reviewJustMarked, setReviewJustMarked] = useState(false);
   const [dailyJustChecked, setDailyJustChecked] = useState(false);
   const [privacyConsent, setPrivacyConsent] = useState(false);
@@ -843,16 +842,6 @@ export function DisasterNoteApp() {
     setSelectedQuickShareStatus("safe");
   }
 
-  function openQuickLocationShare() {
-    setQuickSharePanelOpen(true);
-    applyQuickSharePreset("check_in");
-    if (!emergencyLocationEnabled) {
-      setEmergencyLocationEnabled(true);
-      setMessage("ここシェアを準備しています。現在地の取得許可を確認してください。");
-      fillCurrentLocation();
-    }
-  }
-
   function getLocationEmbedUrl() {
     if (!locationCoords) {
       return "";
@@ -863,7 +852,41 @@ export function DisasterNoteApp() {
     return `https://www.openstreetmap.org/export/embed.html?bbox=${longitude - delta}%2C${latitude - delta}%2C${longitude + delta}%2C${latitude + delta}&layer=mapnik&marker=${latitude}%2C${longitude}`;
   }
 
-  async function sendQuickShare(mode: "status" | "location", status: EmergencyStatus, closePanel?: () => void) {
+  function buildQuickShareText() {
+    const locationLine =
+      emergencyLocationEnabled && manualLocation.trim()
+        ? `現在地: ${manualLocation.trim()}${locationMapUrl ? `\n地図: ${locationMapUrl}` : ""}`
+        : "現在地: 共有しません";
+
+    return `【ここシェア】\n${quickShareMessage.trim() || "今いる場所を共有します。"}\n${locationLine}`;
+  }
+
+  async function shareQuickShareExternally() {
+    if (!emergencyLocationEnabled || (!manualLocation.trim() && !locationMapUrl)) {
+      setMessage("先に位置情報をONにして、現在地を用意してください。");
+      return;
+    }
+
+    const text = buildQuickShareText();
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: appName, text, url: locationMapUrl || undefined });
+        setMessage("共有画面を開きました。LINEやメールを選んで送れます。");
+        return;
+      } catch {
+        setMessage("共有を中止しました。必要なら共有文をコピーして送れます。");
+      }
+    }
+
+    try {
+      await navigator.clipboard.writeText(text);
+      setMessage("共有文をコピーしました。LINEやメールに貼り付けて送れます。");
+    } catch {
+      setMessage("共有文をコピーできませんでした。");
+    }
+  }
+
+  async function sendQuickShare(mode: "status" | "location", status: EmergencyStatus) {
     if (!cloudUser) {
       setMessage("共有相手へ送るには、先に設定画面でログインしてください。");
       setActiveScreen("settings");
@@ -905,8 +928,6 @@ export function DisasterNoteApp() {
 
       await refreshWatchConnections(cloudUser);
       setMessage(mode === "location" ? "ここシェアを送りました。" : `${statusLabels[status]}を共有しました。`);
-      closePanel?.();
-      setQuickSharePanelOpen(false);
       setEmergencyPanelOpen(false);
     } catch {
       setMessage("共有の送信に失敗しました。通信状態を確認してください。");
@@ -1262,7 +1283,7 @@ export function DisasterNoteApp() {
   }
 
   async function sendEmergencyUpdate() {
-    await sendQuickShare("status", selectedEmergencyStatus, () => setEmergencyPanelOpen(false));
+    await sendQuickShare("status", selectedEmergencyStatus);
   }
 
   function shareFamilyInvite(member?: HouseholdMember) {
@@ -1312,12 +1333,12 @@ export function DisasterNoteApp() {
       setManualLocation("");
       setLocationMapUrl("");
       setLocationCoords(null);
-      setMessage("今回の位置共有をOFFにしました。");
+      setMessage("位置情報をOFFにしました。");
       return;
     }
 
     setEmergencyLocationEnabled(true);
-    setMessage("今回だけ位置共有をONにしました。現在地の取得許可を確認します。取得後も、送信するまで家族には共有されません。");
+    setMessage("位置情報をONにしました。現在地の取得許可を確認します。送信するまで相手には共有されません。");
     fillCurrentLocation();
   }
 
@@ -1590,12 +1611,12 @@ export function DisasterNoteApp() {
                 <p className="checkin-feedback">
                   {dailyJustChecked
                     ? `最終安否確認: ${formatDate(data.members[0]?.latestStatusAt || data.statusLogs[0]?.createdAt || "")}`
-                    : "日常の無事連絡をすぐ残せます。急ぎの時も、このボタンだけで伝えられます。"}
+                    : "普段の無事連絡を、すぐ残せます。急ぎの時もこのボタンだけで伝えられます。"}
                 </p>
               </>
             ) : (
               <>
-                <p className="checkin-feedback">待ち合わせ、帰宅中、今いる場所を、必要な相手にだけ時間限定で共有できます。</p>
+                <p className="checkin-feedback">待ち合わせや帰宅中の場所を、必要な相手にだけ短時間で共有できます。</p>
                 <div className="preset-card-list">
                   {quickSharePresets.map((preset) => (
                     <button
@@ -1625,15 +1646,15 @@ export function DisasterNoteApp() {
                 <div className="location-share-card location-share-card-strong">
                   <div>
                     <p className="panel-label">現在地</p>
-                    <h3>{locationMapUrl ? "地図リンクの準備ができました" : "位置情報を取得して送る"}</h3>
-                    <p>ONにした時だけこのスマホで現在地を取得します。送信するまで相手には共有されません。</p>
+                    <h3>{locationMapUrl ? "地図を確認できます" : "位置情報を使いますか"}</h3>
+                    <p>ONの時だけこのスマホで現在地を使います。送信するまで相手には共有されません。</p>
                   </div>
                   <button
                     type="button"
                     className={emergencyLocationEnabled ? "secondary-action is-selected" : "secondary-action"}
                     onClick={toggleLocationShare}
                   >
-                    {emergencyLocationEnabled ? "位置共有ON" : "現在地を取得してON"}
+                    {emergencyLocationEnabled ? "位置情報ON" : "位置情報OFF"}
                   </button>
                 </div>
                 {emergencyLocationEnabled ? (
@@ -1653,16 +1674,16 @@ export function DisasterNoteApp() {
                           <iframe className="map-frame" title="現在地プレビュー" src={getLocationEmbedUrl()} loading="lazy" />
                         </div>
                         <a className="map-preview" href={locationMapUrl} target="_blank" rel="noreferrer">
-                          Googleマップで現在地を開く
+                          Googleマップで開く
                         </a>
                       </>
                     ) : (
-                      <p className="small-copy">位置情報が取れない時は、場所を手入力して送れます。</p>
+                      <p className="small-copy">位置が取れない時は、場所を手入力して送れます。</p>
                     )}
                   </div>
                 ) : null}
                 <div className="custom-message-box compact-message-box">
-                  <label className="field-label" htmlFor="quick-share-message-home">ひとこと</label>
+                  <label className="field-label" htmlFor="quick-share-message-home">コメント</label>
                   <textarea id="quick-share-message-home" value={quickShareMessage} onChange={(event) => setQuickShareMessage(event.target.value)} />
                 </div>
                 <div className="quick-share-duration">
@@ -1686,7 +1707,10 @@ export function DisasterNoteApp() {
                   onClick={() => sendQuickShare("location", selectedQuickShareStatus)}
                   disabled={quickShareSending}
                 >
-                  {quickShareSending ? "送信中..." : "位置を送る"}
+                  {quickShareSending ? "送信中..." : "アプリで送る"}
+                </button>
+                <button type="button" className="secondary-action" onClick={shareQuickShareExternally}>
+                  LINEやメールで送る
                 </button>
               </>
             )}
@@ -1771,6 +1795,11 @@ export function DisasterNoteApp() {
                   <div>
                     <strong>{member.name}</strong>
                     <span>{member.relation} / {getMemberStatusDetail(member)}</span>
+                    {member.latestShare?.mapUrl ? (
+                      <a className="member-map-link" href={member.latestShare.mapUrl} target="_blank" rel="noreferrer">
+                        地図を見る
+                      </a>
+                    ) : null}
                   </div>
                   <button
                     type="button"
@@ -1990,15 +2019,6 @@ export function DisasterNoteApp() {
             </div>
           </section>
 
-          <section className="panel compact-panel">
-            <p className="panel-label">PDF・印刷</p>
-            <h2>紙の控えを作る</h2>
-            <p>家族情報、緊急連絡先、避難場所、防災備蓄を1枚にまとめて印刷できます。スマホが使えない時の備えに。</p>
-            <button type="button" className="wide-action" onClick={printSafetyNote}>
-              PDF・印刷で保存
-            </button>
-            <p className="small-copy">iPhoneは「Safari → 共有 → PDFを保存」、Androidは「印刷 → PDFに保存」でPDF化できます。</p>
-          </section>
         </div>
 
         <div className="screen-page" aria-hidden={activeScreen !== "supplies"}>
@@ -2045,6 +2065,15 @@ export function DisasterNoteApp() {
                 <button type="button" onClick={addSupply}>追加</button>
               </div>
             </details>
+            <section className="panel compact-panel supply-print-panel">
+              <p className="panel-label">PDF・印刷</p>
+              <h3>紙の控えを作る</h3>
+              <p>家族情報、連絡先、避難場所、防災備蓄をまとめて印刷できます。スマホが使えない時の控えに使えます。</p>
+              <button type="button" className="wide-action" onClick={printSafetyNote}>
+                PDF・印刷で保存
+              </button>
+              <p className="small-copy">iPhoneは「Safari → 共有 → PDFを保存」、Androidは「印刷 → PDFに保存」でPDFにできます。</p>
+            </section>
             <div className="supply-delete-actions">
               <button type="button" className="danger-button supply-delete-button" onClick={deleteCheckedSupplies}>
                 {supplyDeleteMode ? `選択した備蓄品を削除${selectedSupplyCount > 0 ? ` (${selectedSupplyCount}件)` : ""}` : "削除する項目を選ぶ"}
@@ -2254,9 +2283,7 @@ export function DisasterNoteApp() {
               </button>
             </div>
             <section className="status-panel emergency-panel">
-              <p className="small-copy">
-                状況を選び、必要なら現在地を1回だけ添えて送れます。送信後、家族状況に反映されます。
-              </p>
+              <p className="small-copy">状況を選んで送れます。必要なら現在地を1回だけ添えられます。</p>
               <div className="recipient-chip-group">
                 {activeConnections.map((link) => (
                   <button
@@ -2320,7 +2347,7 @@ export function DisasterNoteApp() {
                   className={emergencyLocationEnabled ? "secondary-action is-selected" : "secondary-action"}
                   onClick={toggleLocationShare}
                 >
-                  {emergencyLocationEnabled ? "現在地を添える" : "現在地を取得して添える"}
+                  {emergencyLocationEnabled ? "位置情報ON" : "位置情報OFF"}
                 </button>
               </div>
               {emergencyLocationEnabled ? (
@@ -2339,11 +2366,11 @@ export function DisasterNoteApp() {
                         <iframe className="map-frame" title="現在地プレビュー" src={getLocationEmbedUrl()} loading="lazy" />
                       </div>
                       <a className="map-preview" href={locationMapUrl} target="_blank" rel="noreferrer">
-                        Googleマップで現在地を開く
+                        Googleマップで開く
                       </a>
                     </>
                   ) : (
-                    <p className="small-copy">許可後に現在地が入ります。取得できない場合は手動で場所を入力できます。</p>
+                    <p className="small-copy">許可後に現在地が入ります。取れない時は手入力できます。</p>
                   )}
                 </div>
               ) : null}

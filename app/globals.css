@@ -1051,33 +1051,52 @@ button {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
+  padding: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 12px;
+  background: rgba(8, 39, 36, 0.16);
 }
 
 .home-mode-toggle button {
-  min-height: 44px;
-  border: 1px solid rgba(255, 255, 255, 0.34);
+  min-height: 48px;
+  border: 1px solid transparent;
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.08);
-  color: rgba(255, 255, 255, 0.88);
+  background: transparent;
+  color: rgba(255, 255, 255, 0.76);
   font-weight: 800;
 }
 
 .home-mode-toggle button.is-active {
   background: white;
   color: var(--teal);
-  box-shadow: 0 8px 18px rgba(7, 40, 37, 0.16);
+  box-shadow: 0 10px 22px rgba(7, 40, 37, 0.22);
 }
 
 .home-share-panel {
   min-height: 0;
+  background: linear-gradient(180deg, #155a7e 0%, #0d7168 100%);
 }
 
 .home-share-panel .checkin-feedback {
   margin-bottom: 2px;
+  color: rgba(255, 255, 255, 0.9);
 }
 
 .home-share-panel .wide-action {
   margin-top: 4px;
+}
+
+.home-share-panel .secondary-action,
+.home-share-panel .recipient-chip,
+.home-share-panel .map-preview,
+.home-share-panel textarea,
+.home-share-panel input {
+  border-color: rgba(255, 255, 255, 0.46);
+}
+
+.home-share-panel .secondary-action {
+  background: rgba(255, 255, 255, 0.12);
+  color: white;
 }
 
 .daily-check-panel .checkin-button {
@@ -1551,6 +1570,11 @@ button {
   box-shadow: 0 0 0 5px rgba(97, 171, 255, 0.18);
 }
 
+.location-share-card .secondary-action:not(.is-selected) {
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.88);
+}
+
 .status-choice {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -1636,6 +1660,15 @@ button {
   color: var(--teal);
   font-weight: 700;
   text-decoration: none;
+}
+
+.member-map-link {
+  display: inline-flex;
+  margin-top: 6px;
+  color: var(--teal);
+  font-size: 0.84rem;
+  font-weight: 700;
+  text-decoration: underline;
 }
 
 .message-actions {
@@ -1756,6 +1789,10 @@ button {
 .quick-share-duration > span {
   font-size: 0.86rem;
   font-weight: 700;
+}
+
+.supply-print-panel {
+  margin-top: 12px;
 }
 
 .compact-message-box textarea {
