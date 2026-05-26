@@ -52,7 +52,11 @@ export async function GET(request: NextRequest) {
   const secret = process.env.CRON_SECRET;
   const authHeader = request.headers.get("authorization");
 
-  if (secret && authHeader !== `Bearer ${secret}` && !request.headers.get("x-vercel-cron")) {
+  if (!secret) {
+    return NextResponse.json({ error: "Cron secret is not configured." }, { status: 503 });
+  }
+
+  if (authHeader !== `Bearer ${secret}`) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

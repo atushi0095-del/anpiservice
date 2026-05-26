@@ -20,9 +20,19 @@ export async function POST(request: NextRequest) {
     const familyName = body.familyName?.trim();
     const familyEmail = body.familyEmail?.trim();
     const connectionType = body.connectionType === "friend" ? "friend" : "family";
+    const normalizedFamilyEmail = familyEmail?.toLowerCase();
+    const normalizedOwnEmail = user.email?.trim().toLowerCase();
 
     if (!familyName || !familyEmail || !isValidEmailAddress(familyEmail)) {
-      return NextResponse.json({ error: "相手の名前とメールアドレスを確認してください。" }, { status: 400 });
+      return NextResponse.json({ error: "名前とメールアドレスを正しく入力してください。" }, { status: 400 });
+    }
+
+    if (familyName.length > 40 || familyEmail.length > 120) {
+      return NextResponse.json({ error: "名前またはメールアドレスが長すぎます。" }, { status: 400 });
+    }
+
+    if (normalizedOwnEmail && normalizedOwnEmail === normalizedFamilyEmail) {
+      return NextResponse.json({ error: "自分自身を招待することはできません。" }, { status: 400 });
     }
 
     const link = await addFamilyContactAdmin(user.uid, familyName, familyEmail, connectionType);

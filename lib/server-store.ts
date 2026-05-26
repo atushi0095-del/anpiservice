@@ -29,6 +29,10 @@ const defaultSettings = (userId: string): NotificationSettings => ({
   familyChannel: "push"
 });
 
+const ALLOWED_FREQUENCY_DAYS = new Set([1, 2, 3]);
+const ALLOWED_REMINDER_CHANNELS = new Set(["app", "email"]);
+const ALLOWED_FAMILY_CHANNELS = new Set(["push", "line", "email"]);
+
 function dateString(value: unknown): string {
   if (typeof value === "string") {
     return value;
@@ -75,6 +79,84 @@ function isShareActive(share: QuickShare) {
   return new Date(share.expiresAt).getTime() > Date.now();
 }
 
+function isIsoDateString(value: unknown) {
+  return typeof value === "string" && !Number.isNaN(new Date(value).getTime());
+}
+
+function sanitizeProfile(profile: UserProfile): UserProfile {
+  return {
+    id: profile.id,
+    displayName: profile.displayName,
+    email: profile.email,
+    role: profile.role,
+    createdAt: profile.createdAt
+  };
+}
+
+function sanitizeWatchLink(link: WatchLink): WatchLink {
+  return {
+    id: link.id,
+    memberId: link.memberId,
+    familyId: link.familyId,
+    familyName: link.familyName,
+    familyEmail: link.familyEmail,
+    connectionType: link.connectionType,
+    lineLinkCode: link.lineLinkCode,
+    inviteStatus: link.inviteStatus,
+    acceptedAt: link.acceptedAt,
+    acceptedFamilyId: link.acceptedFamilyId,
+    lineLinked: link.lineLinked,
+    lineLinkedAt: link.lineLinkedAt,
+    pushEnabled: link.pushEnabled,
+    pushLinkedAt: link.pushLinkedAt,
+    preferredChannel: link.preferredChannel,
+    active: link.active,
+    createdAt: link.createdAt
+  };
+}
+
+function ensureValidSettings(userId: string, settings: NotificationSettings) {
+  if (settings.userId !== userId) {
+    throw new Error("設定の保存対象が正しくありません。");
+  }
+
+  if (!ALLOWED_FREQUENCY_DAYS.has(settings.frequencyDays)) {
+    throw new Error("確認頻度は 1日・2日・3日のいずれかを選んでください。");
+  }
+
+  if (!Number.isInteger(settings.graceHours) || settings.graceHours < 1 || settings.graceHours > 24) {
+    throw new Error("猶予時間は1時間から24時間の間で設定してください。");
+  }
+
+  if (!ALLOWED_REMINDER_CHANNELS.has(settings.reminderChannel)) {
+    throw new Error("本人向け通知方法が正しくありません。");
+  }
+
+  if (!ALLOWED_FAMILY_CHANNELS.has(settings.familyChannel)) {
+    throw new Error("共有相手への通知方法が正しくありません。");
+  }
+}
+
+function ensureValidCheckIn(userId: string, checkIn: CheckIn) {
+  if (checkIn.memberId !== userId) {
+    throw new Error("チェックインの保存対象が正しくありません。");
+  }
+
+  if (checkIn.status !== "safe") {
+    throw new Error("現在保存できる安否状態は「無事」のみです。");
+  }
+
+  if (!isIsoDateString(checkIn.checkedAt) || !isIsoDateString(checkIn.nextDueAt)) {
+    throw new Error("チェックイン日時が正しくありません。");
+  }
+
+  const checkedAt = new Date(checkIn.checkedAt).getTime();
+  const nextDueAt = new Date(checkIn.nextDueAt).getTime();
+  if (nextDueAt < checkedAt || nextDueAt - checkedAt > 1000 * 60 * 60 * 24 * 7) {
+    throw new Error("次回確認日時が不正です。");
+  }
+}
+
 export async function loadMemberDashboardAdmin(user: { uid: string; email?: string | null }): Promise<MemberDashboardData> {
   const db = getAdminDb();
   const now = new Date().toISOString();
@@ -115,7 +197,7 @@ export async function loadMemberDashboardAdmin(user: { uid: string; email?: stri
     profile,
     settings,
     latestCheckIn: ensuredCheckIn,
-    watchLinks: linksSnap.docs.map((item) => ({ id: item.id, ...(item.data() as Omit<WatchLink, "id">) })),
+    watchLinks: linksSnap.docs.map((item) => sanitizeWatchLink({ id: item.id, ...(item.data() as Omit<WatchLink, "id">) })),
     incomingShares: sharesSnap.docs
       .map((item) => normalizeQuickShare(item.id, item.data() as Omit<QuickShare, "id">))
       .filter(isShareActive)
@@ -129,18 +211,12 @@ export async function loadMemberDashboardAdmin(user: { uid: string; email?: stri
 }
 
 export async function saveSettingsAdmin(userId: string, settings: NotificationSettings) {
-  if (settings.userId !== userId) {
-    throw new Error("設定の保存権限がありません。");
-  }
-
+  ensureValidSettings(userId, settings);
   await getAdminDb().collection("notificationSettings").doc(userId).set(settings, { merge: true });
 }
 
 export async function saveCheckInAdmin(userId: string, checkIn: CheckIn): Promise<CheckIn> {
-  if (checkIn.memberId !== userId) {
-    throw new Error("チェックインの保存権限がありません。");
-  }
-
+  ensureValidCheckIn(userId, checkIn);
   await getAdminDb().collection("checkIns").add(checkIn);
   return checkIn;
 }
@@ -173,7 +249,7 @@ export async function addFamilyContactAdmin(
   };
 
   await db.collection("watchLinks").doc(id).set(link);
-  return link;
+  return sanitizeWatchLink(link);
 }
 
 export async function deactivateFamilyContactAdmin(memberId: string, linkId: string): Promise<WatchLink> {
@@ -182,16 +258,16 @@ export async function deactivateFamilyContactAdmin(memberId: string, linkId: str
   const linkSnap = await linkRef.get();
 
   if (!linkSnap.exists) {
-    throw new Error("見守り先が見つかりません。");
+    throw new Error("見守り相手が見つかりません。");
   }
 
   const link = { id: linkSnap.id, ...(linkSnap.data() as Omit<WatchLink, "id">) };
   if (link.memberId !== memberId) {
-    throw new Error("見守り解除の権限がありません。");
+    throw new Error("見守り相手を更新する権限がありません。");
   }
 
   await linkRef.update({ active: false });
-  return { ...link, active: false };
+  return sanitizeWatchLink({ ...link, active: false });
 }
 
 export async function loadFamilyDashboardAdmin(familyId: string): Promise<FamilyWatchTarget[]> {
@@ -209,14 +285,23 @@ export async function loadFamilyDashboardAdmin(familyId: string): Promise<Family
         .map((checkIn) => checkIn.data() as CheckIn)
         .sort(byNewestDate<CheckIn>("checkedAt"))[0];
 
+      const member = memberSnap.exists ? sanitizeProfile(memberSnap.data() as UserProfile) : undefined;
+
       return {
-        link,
-        member: memberSnap.data() as UserProfile,
+        link: sanitizeWatchLink(link),
+        member,
         settings: settingsSnap.exists ? (settingsSnap.data() as NotificationSettings) : undefined,
         latestCheckIn
       };
     })
   );
 
-  return targets.filter((target) => Boolean(target.member));
+  return targets
+    .filter((target) => Boolean(target.member))
+    .map((target) => ({
+      link: target.link,
+      member: target.member as UserProfile,
+      settings: target.settings,
+      latestCheckIn: target.latestCheckIn
+    }));
 }
