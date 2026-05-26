@@ -63,6 +63,7 @@ type ConsentDoc = {
 };
 
 const storageKey = "kazoku-bosai-note-v1";
+const homeFocusStorageKey = "koko-share-home-focus-v1";
 const appName = "ここシェア";
 
 const screens: Array<{ id: AppScreen; label: string }> = [
@@ -461,6 +462,10 @@ export function DisasterNoteApp() {
     const local = loadLocalData();
     setData(local);
     setPrivacyConsent(window.localStorage.getItem(consentStorageKey) === "true");
+    const savedHomeFocus = window.localStorage.getItem(homeFocusStorageKey);
+    if (savedHomeFocus === "safe" || savedHomeFocus === "share") {
+      setHomeFocusMode(savedHomeFocus);
+    }
     setReady(true);
 
     if (!hasFirebaseConfig()) return;
@@ -484,6 +489,14 @@ export function DisasterNoteApp() {
 
     window.localStorage.setItem(storageKey, JSON.stringify(data));
   }, [data, ready]);
+
+  useEffect(() => {
+    if (!ready) {
+      return;
+    }
+
+    window.localStorage.setItem(homeFocusStorageKey, homeFocusMode);
+  }, [homeFocusMode, ready]);
 
   useEffect(() => {
     if ("serviceWorker" in navigator) {
@@ -1447,7 +1460,7 @@ export function DisasterNoteApp() {
       <main className="phone-app disaster-app consent-gate">
         <header className="app-header">
           <div className="brand-row">
-            <img src="/icon.svg" alt={appName} className="app-icon" />
+            <img src="/header-icon.svg" alt={appName} className="app-icon" />
             <div>
               <p className="eyebrow">はじめに確認してください</p>
               <h1>{appName}</h1>
@@ -1513,7 +1526,7 @@ export function DisasterNoteApp() {
     <main className="phone-app disaster-app">
       <header className="app-header">
         <button type="button" className="brand-row brand-home-button" onClick={() => switchScreen("home")} aria-label="確認画面へ戻る">
-          <img src="/icon.svg" alt={appName} className="app-icon" />
+          <img src="/header-icon.svg" alt={appName} className="app-icon" />
           <div>
             <p className="eyebrow">安否確認と位置シェア</p>
             <h1>{appName}</h1>
@@ -1534,7 +1547,15 @@ export function DisasterNoteApp() {
       <section className="app-screen" aria-label={appName} onTouchStart={handleScreenTouchStart} onTouchEnd={handleScreenTouchEnd}>
         <div className="screens-track" style={{ transform: `translateX(${-Math.max(0, trackScreens.findIndex((s) => s.id === activeScreen)) * 100}%)` }}>
         <div className="screen-page" aria-hidden={activeScreen !== "home"}>
-          <section className={dailyJustChecked && homeFocusMode === "safe" ? "status-panel daily-check-panel checkin-complete" : "status-panel daily-check-panel"}>
+          <section
+            className={
+              homeFocusMode === "share"
+                ? "status-panel daily-check-panel home-share-panel"
+                : dailyJustChecked
+                  ? "status-panel daily-check-panel checkin-complete"
+                  : "status-panel daily-check-panel"
+            }
+          >
             <p className="panel-label">ホーム</p>
             <h2>{homeFocusMode === "safe" ? "安否確認" : "位置シェア"}</h2>
             <div className="home-mode-toggle" role="tablist" aria-label="ホームの使い方">
@@ -1574,10 +1595,99 @@ export function DisasterNoteApp() {
               </>
             ) : (
               <>
-                <button type="button" className="emergency-launch" onClick={openQuickLocationShare}>
-                  ここシェアを開く
-                </button>
                 <p className="checkin-feedback">待ち合わせ、帰宅中、今いる場所を、必要な相手にだけ時間限定で共有できます。</p>
+                <div className="preset-card-list">
+                  {quickSharePresets.map((preset) => (
+                    <button
+                      key={preset.id}
+                      type="button"
+                      className={quickSharePreset === preset.id ? "preset-card is-selected" : "preset-card"}
+                      onClick={() => applyQuickSharePreset(preset.id)}
+                    >
+                      <strong>{preset.label}</strong>
+                      <span>{preset.helper}</span>
+                    </button>
+                  ))}
+                </div>
+                <div className="recipient-chip-group">
+                  {activeConnections.map((link) => (
+                    <button
+                      key={link.id}
+                      type="button"
+                      className={selectedRecipientIds.includes(link.familyId) ? "recipient-chip is-selected" : "recipient-chip"}
+                      onClick={() => toggleRecipientSelection(link.familyId)}
+                    >
+                      <strong>{link.familyName}</strong>
+                      <span>{connectionTypeLabels[link.connectionType || "family"]}</span>
+                    </button>
+                  ))}
+                </div>
+                <div className="location-share-card location-share-card-strong">
+                  <div>
+                    <p className="panel-label">現在地</p>
+                    <h3>{locationMapUrl ? "地図リンクの準備ができました" : "位置情報を取得して送る"}</h3>
+                    <p>ONにした時だけこのスマホで現在地を取得します。送信するまで相手には共有されません。</p>
+                  </div>
+                  <button
+                    type="button"
+                    className={emergencyLocationEnabled ? "secondary-action is-selected" : "secondary-action"}
+                    onClick={toggleLocationShare}
+                  >
+                    {emergencyLocationEnabled ? "位置共有ON" : "現在地を取得してON"}
+                  </button>
+                </div>
+                {emergencyLocationEnabled ? (
+                  <div className="location-tools">
+                    <input
+                      value={manualLocation}
+                      onChange={(event) => {
+                        setManualLocation(event.target.value);
+                        setLocationMapUrl("");
+                        setLocationCoords(null);
+                      }}
+                      placeholder="例: 駅前のカフェ、学校前、避難所"
+                    />
+                    {locationMapUrl ? (
+                      <>
+                        <div className="map-preview-shell">
+                          <iframe className="map-frame" title="現在地プレビュー" src={getLocationEmbedUrl()} loading="lazy" />
+                        </div>
+                        <a className="map-preview" href={locationMapUrl} target="_blank" rel="noreferrer">
+                          Googleマップで現在地を開く
+                        </a>
+                      </>
+                    ) : (
+                      <p className="small-copy">位置情報が取れない時は、場所を手入力して送れます。</p>
+                    )}
+                  </div>
+                ) : null}
+                <div className="custom-message-box compact-message-box">
+                  <label className="field-label" htmlFor="quick-share-message-home">ひとこと</label>
+                  <textarea id="quick-share-message-home" value={quickShareMessage} onChange={(event) => setQuickShareMessage(event.target.value)} />
+                </div>
+                <div className="quick-share-duration">
+                  <span>共有時間</span>
+                  <div className="recipient-chip-group compact">
+                    {quickShareDurations.map((option) => (
+                      <button
+                        key={option.value}
+                        type="button"
+                        className={quickShareDuration === option.value ? "recipient-chip is-selected" : "recipient-chip"}
+                        onClick={() => setQuickShareDuration(option.value)}
+                      >
+                        {option.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  className={quickShareSending ? "wide-action is-busy" : "wide-action"}
+                  onClick={() => sendQuickShare("location", selectedQuickShareStatus)}
+                  disabled={quickShareSending}
+                >
+                  {quickShareSending ? "送信中..." : "位置を送る"}
+                </button>
               </>
             )}
             <button type="button" className="secondary-action emergency-open-button" onClick={() => setEmergencyPanelOpen(true)}>
@@ -2130,119 +2240,6 @@ export function DisasterNoteApp() {
         </div>
         </div>
       </section>
-
-      {quickSharePanelOpen ? (
-        <div className="status-modal-backdrop emergency-panel-backdrop" role="presentation" onClick={() => setQuickSharePanelOpen(false)}>
-          <section className="emergency-sheet" role="dialog" aria-modal="true" aria-label="ここシェア" onClick={(event) => event.stopPropagation()}>
-            <div className="emergency-sheet-header">
-              <div>
-                <p className="panel-label">ここシェア</p>
-                <h2>選んだ相手にだけ送る</h2>
-              </div>
-              <button type="button" className="back-to-home emergency-close-button" onClick={() => setQuickSharePanelOpen(false)}>
-                閉じる
-              </button>
-            </div>
-            <section className="status-panel emergency-panel">
-              <p className="small-copy">常時共有ではなく、選んだ相手にだけ短時間共有します。使い方に合わせて下のモードを選べます。</p>
-              <div className="preset-card-list">
-                {quickSharePresets.map((preset) => (
-                  <button
-                    key={preset.id}
-                    type="button"
-                    className={quickSharePreset === preset.id ? "preset-card is-selected" : "preset-card"}
-                    onClick={() => applyQuickSharePreset(preset.id)}
-                  >
-                    <strong>{preset.label}</strong>
-                    <span>{preset.helper}</span>
-                  </button>
-                ))}
-              </div>
-              <div className="recipient-chip-group">
-                {activeConnections.map((link) => (
-                  <button
-                    key={link.id}
-                    type="button"
-                    className={selectedRecipientIds.includes(link.familyId) ? "recipient-chip is-selected" : "recipient-chip"}
-                    onClick={() => toggleRecipientSelection(link.familyId)}
-                  >
-                    <strong>{link.familyName}</strong>
-                    <span>{connectionTypeLabels[link.connectionType || "family"]}</span>
-                  </button>
-                ))}
-              </div>
-              <div className="location-share-card location-share-card-strong">
-                <div>
-                  <p className="panel-label">現在地</p>
-                  <h3>{locationMapUrl ? "地図リンクの準備ができました" : "位置情報を取得して送る"}</h3>
-                  <p>ONにした時だけこのスマホで現在地を取得します。送信するまで相手には共有されません。</p>
-                </div>
-                <button
-                  type="button"
-                  className={emergencyLocationEnabled ? "secondary-action is-selected" : "secondary-action"}
-                  onClick={toggleLocationShare}
-                >
-                  {emergencyLocationEnabled ? "位置共有ON" : "現在地を取得してON"}
-                </button>
-              </div>
-              {emergencyLocationEnabled ? (
-                <div className="location-tools">
-                  <input
-                    value={manualLocation}
-                    onChange={(event) => {
-                      setManualLocation(event.target.value);
-                      setLocationMapUrl("");
-                      setLocationCoords(null);
-                    }}
-                    placeholder="例: 駅前のカフェ、学校前、避難所"
-                  />
-                  {locationMapUrl ? (
-                    <>
-                      <div className="map-preview-shell">
-                        <iframe className="map-frame" title="現在地プレビュー" src={getLocationEmbedUrl()} loading="lazy" />
-                      </div>
-                      <a className="map-preview" href={locationMapUrl} target="_blank" rel="noreferrer">
-                        Googleマップで現在地を開く
-                      </a>
-                    </>
-                  ) : (
-                    <p className="small-copy">位置情報が取れない時は、場所を手入力して送れます。</p>
-                  )}
-                </div>
-              ) : null}
-              <div className="custom-message-box compact-message-box">
-                <label className="field-label" htmlFor="quick-share-message">ひとこと</label>
-                <textarea id="quick-share-message" value={quickShareMessage} onChange={(event) => setQuickShareMessage(event.target.value)} />
-              </div>
-              <div className="quick-share-duration">
-                <span>共有時間</span>
-                <div className="recipient-chip-group compact">
-                  {quickShareDurations.map((option) => (
-                    <button
-                      key={option.value}
-                      type="button"
-                      className={quickShareDuration === option.value ? "recipient-chip is-selected" : "recipient-chip"}
-                      onClick={() => setQuickShareDuration(option.value)}
-                    >
-                      {option.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <div className="message-actions">
-                <button
-                  type="button"
-                  className={quickShareSending ? "wide-action is-busy" : "wide-action"}
-                  onClick={() => sendQuickShare("location", selectedQuickShareStatus, () => setQuickSharePanelOpen(false))}
-                  disabled={quickShareSending}
-                >
-                  {quickShareSending ? "送信中..." : "位置を送る"}
-                </button>
-              </div>
-            </section>
-          </section>
-        </div>
-      ) : null}
 
       {emergencyPanelOpen ? (
         <div className="status-modal-backdrop emergency-panel-backdrop" role="presentation" onClick={() => setEmergencyPanelOpen(false)}>
