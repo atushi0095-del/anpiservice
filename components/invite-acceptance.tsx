@@ -27,6 +27,8 @@ type InvitePreview = {
   };
 };
 
+const appName = "いまここ安否ノート";
+
 export function InviteAcceptance({ code }: InviteAcceptanceProps) {
   const firebaseEnabled = hasFirebaseConfig();
   const normalizedCode = decodeURIComponent(code).trim().toUpperCase();
@@ -78,14 +80,14 @@ export function InviteAcceptance({ code }: InviteAcceptanceProps) {
     }
 
     setAuthAction(mode);
-    setMessage(mode === "signin" ? "ログインしています..." : "登録しています...");
+    setMessage(mode === "signin" ? "ログインしています..." : "新規登録しています...");
     try {
       const { auth } = getFirebaseClients();
       if (mode === "signin") {
         await signInWithEmailAndPassword(auth, email, password);
       } else {
         if (!guardianConsent) {
-          setMessage("新規登録には、18歳以上であること、または保護者の同意があることの確認が必要です。");
+          setMessage("新規登録には、18歳以上であること、または保護者同意の確認が必要です。");
           return;
         }
         if (!isStrongEnoughPassword(password)) {
@@ -95,7 +97,7 @@ export function InviteAcceptance({ code }: InviteAcceptanceProps) {
         await createUserWithEmailAndPassword(auth, email, password);
       }
       setPassword("");
-      setMessage("ログインしました。承認ボタンを押してください。");
+      setMessage("ログインできました。承認ボタンを押してください。");
     } catch (error) {
       setMessage(toAuthMessage(error));
     } finally {
@@ -105,12 +107,12 @@ export function InviteAcceptance({ code }: InviteAcceptanceProps) {
 
   async function handleAccept() {
     if (!authUser) {
-      setMessage("先にメールでログインまたは新規登録してください。");
+      setMessage("先にメールでログイン、または新規登録してください。");
       return;
     }
 
     setAccepting(true);
-    setMessage("見守りを承認しています...");
+    setMessage("招待を承認しています...");
     try {
       const token = await authUser.getIdToken();
       const response = await fetch(`/api/invites/${encodeURIComponent(normalizedCode)}`, {
@@ -126,7 +128,7 @@ export function InviteAcceptance({ code }: InviteAcceptanceProps) {
         throw new Error(data.error ? `invite-error: ${data.error}` : "招待の承認に失敗しました。");
       }
       setAcceptedCode(data.lineLinkCode);
-      setMessage("見守り招待を承認しました。アプリ通知を登録できます。");
+      setMessage("招待を承認しました。必要なら通知設定を続けてください。");
     } catch (error) {
       setMessage(toAppErrorMessage(error));
     } finally {
@@ -138,26 +140,28 @@ export function InviteAcceptance({ code }: InviteAcceptanceProps) {
     <main className="phone-app invite-page">
       <header className="app-header">
         <div className="brand-row">
-          <img src="/icon.svg" alt="あんぴノート" className="app-icon" />
+          <img src="/icon.svg" alt={appName} className="app-icon" />
           <div>
-            <p className="eyebrow">見守り招待</p>
-            <h1>あんぴノート</h1>
+            <p className="eyebrow">招待承認</p>
+            <h1>{appName}</h1>
           </div>
         </div>
       </header>
 
-      <p className={`app-message ${loading || authAction || accepting ? "is-busy" : ""}`}>{loading ? "読み込み中です..." : message}</p>
+      <p className={`app-message ${loading || authAction || accepting ? "is-busy" : ""}`}>
+        {loading ? "読み込み中です..." : message}
+      </p>
 
       <section className="panel invite-card">
         <p className="panel-label">招待内容</p>
-        <h2>{invite ? `${invite.member.displayName} さんを見守る` : "招待を確認中"}</h2>
+        <h2>{invite ? `${invite.member.displayName} さんとつながる` : "招待を確認中"}</h2>
         <p>
-          承認すると、未チェックイン時にこの家族アカウントへ通知できるようになります。
-          本人の見守り情報は、承認した家族だけが確認できます。
+          承認すると、家族や友達として安否確認と時間限定の位置共有を使えるようになります。
+          本人の共有情報は、明示操作した時だけ相手に届きます。
         </p>
         {invite ? (
           <div className="setting-line">
-            <span>招待先</span>
+            <span>招待先メール</span>
             <strong>{invite.familyEmail}</strong>
           </div>
         ) : null}
@@ -165,15 +169,15 @@ export function InviteAcceptance({ code }: InviteAcceptanceProps) {
 
       {!authUser ? (
         <section className="panel">
-          <p className="panel-label">家族アカウント</p>
-          <h2>ログインまたは登録</h2>
+          <p className="panel-label">アカウント</p>
+          <h2>ログインまたは新規登録</h2>
           <div className="auth-form invite-auth">
             <input value={email} onChange={(event) => setEmail(event.target.value)} placeholder="メールアドレス" type="email" />
-            <input value={password} onChange={(event) => setPassword(event.target.value)} placeholder="パスワード 8文字以上" type="password" />
+            <input value={password} onChange={(event) => setPassword(event.target.value)} placeholder="パスワード（8文字以上）" type="password" />
             {authAction !== "signin" ? (
               <label className="check-row legal-check-row">
                 <input type="checkbox" checked={guardianConsent} onChange={(event) => setGuardianConsent(event.target.checked)} />
-                <span>新規登録の場合: 18歳以上です。または、保護者の同意を得て利用します。</span>
+                <span>18歳以上です。または、保護者の同意を得て利用します。</span>
               </label>
             ) : null}
             <button type="button" className={authAction === "signin" ? "is-busy" : ""} onClick={() => handleAuth("signin")} disabled={Boolean(authAction)}>
@@ -183,15 +187,15 @@ export function InviteAcceptance({ code }: InviteAcceptanceProps) {
               {authAction === "signup" ? "登録中..." : "新規登録"}
             </button>
           </div>
-          <p className="small-copy">パスワードは8文字以上で、英字と数字を含めてください。一度ログインすると次回から自動ログインされます。</p>
+          <p className="small-copy">ログインすると承認できます。新規登録した場合も、そのまま承認に進めます。</p>
         </section>
       ) : (
         <section className="panel">
           <p className="panel-label">承認</p>
-          <h2>{authUser.email} で承認します</h2>
+          <h2>{authUser.email} でログイン中です</h2>
           <label className="check-row">
             <input type="checkbox" checked={mutualWatch} onChange={(event) => setMutualWatch(event.target.checked)} />
-            <span>自分も相手に見守ってもらう</span>
+            <span>自分も相手の状況を受け取る</span>
           </label>
           <button
             type="button"
@@ -199,7 +203,7 @@ export function InviteAcceptance({ code }: InviteAcceptanceProps) {
             onClick={handleAccept}
             disabled={accepting || Boolean(acceptedCode)}
           >
-            {accepting ? "承認中..." : acceptedCode ? "承認済み" : "見守りを承認"}
+            {accepting ? "承認中..." : acceptedCode ? "承認済み" : "招待を承認する"}
           </button>
           {acceptedCode ? <PushRegistration lineLinkCode={acceptedCode} enabled={false} /> : null}
         </section>

@@ -51,7 +51,7 @@ async function handleLineEvent(event: NonNullable<LineWebhookBody["events"]>[num
   }
 
   if (!userId || !/^ANPI-\d{6}$/.test(text)) {
-    await replyLineMessage(event.replyToken, "あんぴノートの連携コードを送ってください。例: ANPI-123456");
+    await replyLineMessage(event.replyToken, "いまここ安否ノートの連携コードを送ってください。例: ANPI-123456");
     return;
   }
 
@@ -87,5 +87,5 @@ async function handleLineEvent(event: NonNullable<LineWebhookBody["events"]>[num
     createdAt: FieldValue.serverTimestamp()
   });
 
-  await replyLineMessage(event.replyToken, "あんぴノートのLINE連携が完了しました。未チェックイン時はこちらへ通知します。");
+  await replyLineMessage(event.replyToken, "いまここ安否ノートのLINE連携が完了しました。未チェックイン時はこちらへ通知します。");
 }

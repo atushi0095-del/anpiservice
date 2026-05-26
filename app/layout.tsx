@@ -1,12 +1,14 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 
+const appName = "いまここ安否ノート";
+
 export const metadata: Metadata = {
-  title: "安否確認ノート",
-  description: "日常の見守りと家族の備えを整理し、いざという時の安否共有を簡単にするPWA。",
+  title: appName,
+  description: "防災メモと時間限定の位置共有をまとめ、日常にも災害時にも使いやすくしたPWAです。",
   appleWebApp: {
     capable: true,
-    title: "安否確認ノート",
+    title: appName,
     statusBarStyle: "default"
   }
 };

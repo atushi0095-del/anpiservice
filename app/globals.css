@@ -1622,6 +1622,42 @@ button {
   width: 100%;
 }
 
+.preset-card-list {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.preset-card {
+  display: grid;
+  gap: 4px;
+  min-height: 72px;
+  align-content: center;
+  border: 1px solid rgba(255, 255, 255, 0.42);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.12);
+  color: white;
+  padding: 10px;
+  text-align: left;
+}
+
+.preset-card strong {
+  font-size: 0.95rem;
+}
+
+.preset-card span {
+  font-size: 0.75rem;
+  line-height: 1.35;
+  opacity: 0.88;
+}
+
+.preset-card.is-selected {
+  border-color: #8fc8ff;
+  background: white;
+  color: var(--teal);
+  box-shadow: 0 0 0 4px rgba(143, 200, 255, 0.16);
+}
+
 .recipient-chip-group {
   display: flex;
   flex-wrap: wrap;

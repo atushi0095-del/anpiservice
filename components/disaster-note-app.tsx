@@ -52,6 +52,7 @@ type LocationCoords = {
   latitude: number;
   longitude: number;
 };
+type QuickSharePresetId = "meetup" | "heading_home" | "check_in";
 type ConsentDoc = {
   id: "terms" | "privacy" | "disclaimer";
   title: string;
@@ -61,6 +62,7 @@ type ConsentDoc = {
 };
 
 const storageKey = "kazoku-bosai-note-v1";
+const appName = "いまここ安否ノート";
 
 const screens: Array<{ id: AppScreen; label: string }> = [
   { id: "home", label: "確認" },
@@ -96,6 +98,11 @@ const quickShareDurations = [
   { value: 180, label: "3時間" }
 ];
 const emergencyShareDurationMinutes = 15;
+const quickSharePresets: Array<{ id: QuickSharePresetId; label: string; duration: number; message: string; helper: string }> = [
+  { id: "meetup", label: "待ち合わせ", duration: 30, message: "ここで待っています。着いたら見てください。", helper: "待ち合わせ場所を短時間だけ共有" },
+  { id: "heading_home", label: "帰宅中", duration: 60, message: "いま帰宅中です。到着したらまた連絡します。", helper: "帰り道を知らせる時に" },
+  { id: "check_in", label: "いまここ", duration: 60, message: "今いる場所を共有します。", helper: "今いる場所をそのまま伝える" }
+];
 
 const dailyCheckInMessage = "今日も無事です。いつも通り過ごしています。";
 const consentStorageKey = "anpi-note-privacy-consent-v1";
@@ -111,7 +118,7 @@ const consentDocs: ConsentDoc[] = [
       "子どもが使う場合は、保護者が管理してください。"
     ],
     lead:
-      "あんぴノートは、日常の見守りと家族の防災情報を整理し、いざという時の状況共有を助けるサービスです。災害の予測、救助、医療判断、生命または身体の安全を保証するものではありません。",
+      `${appName}は、日常の見守りと家族の防災情報を整理し、いざという時の状況共有を助けるサービスです。災害の予測、救助、医療判断、生命または身体の安全を保証するものではありません。`,
     sections: [
       {
         heading: "利用目的",
@@ -151,7 +158,7 @@ const consentDocs: ConsentDoc[] = [
       "設定画面からいつでもデータを削除できます。"
     ],
     lead:
-      "あんぴノートは、日常の見守りと家族の備えを整理し、必要な時に情報を確認しやすくするために、利用者が入力した情報を取り扱います。防災ノート本文は端末保存を基本とし、家族共有に必要な最小限の情報のみサーバーで扱います。",
+      `${appName}は、日常の見守りと家族の備えを整理し、必要な時に情報を確認しやすくするために、利用者が入力した情報を取り扱います。防災ノート本文は端末保存を基本とし、家族共有に必要な最小限の情報のみサーバーで扱います。`,
     sections: [
       {
         heading: "取得する情報",
@@ -205,7 +212,7 @@ const consentDocs: ConsentDoc[] = [
       "位置情報の正確性や共有の到達は保証できません。"
     ],
     lead:
-      "あんぴノートは、日常の見守りと家族の備えを整理し、いざという時の情報共有を助けるためのツールです。命を守る保証、救助の保証、医療判断、災害予測、公的機関への通報代行を提供するものではありません。",
+      `${appName}は、日常の見守りと家族の備えを整理し、いざという時の情報共有を助けるためのツールです。命を守る保証、救助の保証、医療判断、災害予測、公的機関への通報代行を提供するものではありません。`,
     sections: [
       {
         heading: "通信と通知",
@@ -442,6 +449,7 @@ export function DisasterNoteApp() {
   const [watchAdding, setWatchAdding] = useState(false);
   const [selectedRecipientIds, setSelectedRecipientIds] = useState<string[]>([]);
   const [selectedQuickShareStatus, setSelectedQuickShareStatus] = useState<EmergencyStatus>("safe");
+  const [quickSharePreset, setQuickSharePreset] = useState<QuickSharePresetId>("check_in");
   const [quickShareMessage, setQuickShareMessage] = useState("今いる場所を共有します。");
   const [quickShareDuration, setQuickShareDuration] = useState(60);
   const [quickShareSending, setQuickShareSending] = useState(false);
@@ -756,10 +764,10 @@ export function DisasterNoteApp() {
   async function shareWatchInvite(link: WatchLink) {
     const inviteUrl = createWatchInviteUrl(link);
     const partnerLabel = connectionTypeLabels[link.connectionType || "family"];
-    const text = `${link.familyName}さんへ\nあんぴノートで${partnerLabel}としてつながる招待です。リンクを開いて承認してください。\n${inviteUrl}`;
+    const text = `${link.familyName}さんへ\n${appName}で${partnerLabel}としてつながる招待です。リンクを開いて承認してください。\n${inviteUrl}`;
     if (navigator.share) {
       try {
-        await navigator.share({ title: "あんぴノートでつながる", text, url: inviteUrl });
+        await navigator.share({ title: `${appName}でつながる`, text, url: inviteUrl });
         setMessage(`招待を共有しました。相手が承認すると${partnerLabel}としてつながります。`);
         return;
       } catch {
@@ -808,10 +816,21 @@ export function DisasterNoteApp() {
     );
   }
 
+  function applyQuickSharePreset(presetId: QuickSharePresetId) {
+    const preset = quickSharePresets.find((item) => item.id === presetId);
+    if (!preset) {
+      return;
+    }
+
+    setQuickSharePreset(preset.id);
+    setQuickShareMessage(preset.message);
+    setQuickShareDuration(preset.duration);
+    setSelectedQuickShareStatus("safe");
+  }
+
   function openQuickLocationShare() {
     setQuickSharePanelOpen(true);
-    setQuickShareMessage("今いる場所を共有します。");
-    setQuickShareDuration(60);
+    applyQuickSharePreset("check_in");
     if (!emergencyLocationEnabled) {
       setEmergencyLocationEnabled(true);
       setMessage("いまだけ位置共有を準備しています。現在地の取得許可を確認してください。");
@@ -1215,7 +1234,7 @@ export function DisasterNoteApp() {
 
     if (navigator.share) {
       navigator
-        .share({ title: "安否ノート", text })
+        .share({ title: appName, text })
         .then(() => setMessage(`${statusLabels[status]}を記録し、共有画面を開きました。`))
         .catch(() => setMessage(`${statusLabels[status]}を記録しました。共有を中止した場合は、共有文をコピーして送れます。`));
       return;
@@ -1234,11 +1253,11 @@ export function DisasterNoteApp() {
   function shareFamilyInvite(member?: HouseholdMember) {
     const targetName = member?.name ? `${member.name}さん` : "家族";
     const origin = typeof window !== "undefined" ? window.location.origin : "https://anpinote.vercel.app";
-    const text = `${targetName}へ\n安否ノートで家族の連絡先、避難場所、備蓄、緊急時の安否共有を一緒に確認しましょう。\n${origin}\n\n※防災ノート本文は各端末に保存されます。家族共有を使う場合のみ、接続と安否記録の最小限の情報をサーバーで扱います。`;
+    const text = `${targetName}へ\n${appName}で家族の連絡先、避難場所、備蓄、緊急時の安否共有を一緒に確認しましょう。\n${origin}\n\n※防災ノート本文は各端末に保存されます。家族共有を使う場合のみ、接続と安否記録の最小限の情報をサーバーで扱います。`;
 
     if (navigator.share) {
       navigator
-        .share({ title: "安否ノートへの招待", text, url: origin })
+        .share({ title: `${appName}への招待`, text, url: origin })
         .then(() => setMessage("招待の共有画面を開きました。LINEやメールを選んで送れます。"))
         .catch(() => setMessage("共有を中止しました。必要なら招待文をコピーできます。"));
       return;
@@ -1426,10 +1445,10 @@ export function DisasterNoteApp() {
       <main className="phone-app disaster-app consent-gate">
         <header className="app-header">
           <div className="brand-row">
-            <img src="/icon.svg" alt="安否ノート" className="app-icon" />
+            <img src="/icon.svg" alt={appName} className="app-icon" />
             <div>
               <p className="eyebrow">はじめに確認してください</p>
-              <h1>安否ノート</h1>
+              <h1>{appName}</h1>
             </div>
           </div>
         </header>
@@ -1492,10 +1511,10 @@ export function DisasterNoteApp() {
     <main className="phone-app disaster-app">
       <header className="app-header">
         <button type="button" className="brand-row brand-home-button" onClick={() => switchScreen("home")} aria-label="確認画面へ戻る">
-          <img src="/icon.svg" alt="安否ノート" className="app-icon" />
+          <img src="/icon.svg" alt={appName} className="app-icon" />
           <div>
-            <p className="eyebrow">日常と災害時の備え</p>
-            <h1>安否ノート</h1>
+            <p className="eyebrow">防災といまだけ位置共有</p>
+            <h1>{appName}</h1>
           </div>
         </button>
         <div className="header-actions">
@@ -1510,7 +1529,7 @@ export function DisasterNoteApp() {
 
       <p className="app-message">{message}</p>
 
-      <section className="app-screen" aria-label="安否ノート" onTouchStart={handleScreenTouchStart} onTouchEnd={handleScreenTouchEnd}>
+      <section className="app-screen" aria-label={appName} onTouchStart={handleScreenTouchStart} onTouchEnd={handleScreenTouchEnd}>
         <div className="screens-track" style={{ transform: `translateX(${-Math.max(0, trackScreens.findIndex((s) => s.id === activeScreen)) * 100}%)` }}>
         <div className="screen-page" aria-hidden={activeScreen !== "home"}>
           <section className={dailyJustChecked ? "status-panel daily-check-panel checkin-complete" : "status-panel daily-check-panel"}>
@@ -2103,7 +2122,20 @@ export function DisasterNoteApp() {
               </button>
             </div>
             <section className="status-panel emergency-panel">
-              <p className="small-copy">常時共有ではなく、今いる場所だけを短時間共有します。共有先は下で選べます。</p>
+              <p className="small-copy">常時共有ではなく、選んだ相手にだけ短時間共有します。使い方に合わせて下のモードを選べます。</p>
+              <div className="preset-card-list">
+                {quickSharePresets.map((preset) => (
+                  <button
+                    key={preset.id}
+                    type="button"
+                    className={quickSharePreset === preset.id ? "preset-card is-selected" : "preset-card"}
+                    onClick={() => applyQuickSharePreset(preset.id)}
+                  >
+                    <strong>{preset.label}</strong>
+                    <span>{preset.helper}</span>
+                  </button>
+                ))}
+              </div>
               <div className="recipient-chip-group">
                 {activeConnections.map((link) => (
                   <button
@@ -2557,7 +2589,7 @@ export function DisasterNoteApp() {
               </section>
               <section>
                 <h3>すでに追加済みの場合</h3>
-                <p>ホーム画面の「あんぴノート」アイコンから起動してください。</p>
+                <p>{`ホーム画面の「${appName}」アイコンから起動してください。`}</p>
               </section>
             </div>
             <button type="button" className="wide-action" onClick={() => setInstallGuideOpen(false)}>
@@ -2580,10 +2612,10 @@ export function DisasterNoteApp() {
         ))}
       </nav>
 
-      <section className="print-sheet" aria-label="印刷用 安否ノート">
+      <section className="print-sheet" aria-label={`印刷用 ${appName}`}>
         <header>
           <p>印刷用控え</p>
-          <h1>安否ノート</h1>
+          <h1>{appName}</h1>
           <p>印刷日: {new Intl.DateTimeFormat("ja-JP", { dateStyle: "long" }).format(new Date())}</p>
         </header>
 
