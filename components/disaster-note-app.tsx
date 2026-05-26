@@ -843,13 +843,37 @@ export function DisasterNoteApp() {
   }
 
   function getLocationEmbedUrl() {
-    if (!locationCoords) {
+    if (locationCoords) {
+      const { latitude, longitude } = locationCoords;
+      return `https://maps.google.com/maps?q=${latitude.toFixed(5)},${longitude.toFixed(5)}&z=15&output=embed`;
+    }
+
+    if (manualLocation.trim()) {
+      return `https://maps.google.com/maps?q=${encodeURIComponent(manualLocation.trim())}&z=15&output=embed`;
+    }
+
+    return "";
+  }
+
+  function buildGoogleMapsUrl(query: string) {
+    const trimmed = query.trim();
+    if (!trimmed) {
       return "";
     }
 
-    const { latitude, longitude } = locationCoords;
-    const delta = 0.01;
-    return `https://www.openstreetmap.org/export/embed.html?bbox=${longitude - delta}%2C${latitude - delta}%2C${longitude + delta}%2C${latitude + delta}&layer=mapnik&marker=${latitude}%2C${longitude}`;
+    return `https://www.google.com/maps?q=${encodeURIComponent(trimmed)}`;
+  }
+
+  function getLocationViewUrl() {
+    if (locationMapUrl) {
+      return locationMapUrl;
+    }
+
+    if (locationCoords) {
+      return `https://www.google.com/maps?q=${locationCoords.latitude.toFixed(5)},${locationCoords.longitude.toFixed(5)}`;
+    }
+
+    return buildGoogleMapsUrl(manualLocation);
   }
 
   function buildQuickShareText() {
@@ -859,6 +883,16 @@ export function DisasterNoteApp() {
         : "現在地: 共有しません";
 
     return `【ここシェア】\n${quickShareMessage.trim() || "今いる場所を共有します。"}\n${locationLine}`;
+  }
+
+  function openLineShare(text: string, url?: string) {
+    const payload = url ? `${text}\n${url}` : text;
+    window.open(`https://social-plugins.line.me/lineit/share?text=${encodeURIComponent(payload)}`, "_blank", "noopener,noreferrer");
+  }
+
+  function openMailShare(subject: string, text: string, url?: string) {
+    const body = url ? `${text}\n${url}` : text;
+    window.location.href = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
   }
 
   async function shareQuickShareExternally() {
@@ -884,6 +918,26 @@ export function DisasterNoteApp() {
     } catch {
       setMessage("共有文をコピーできませんでした。");
     }
+  }
+
+  function shareQuickShareToLine() {
+    if (!emergencyLocationEnabled || (!manualLocation.trim() && !locationMapUrl)) {
+      setMessage("先に位置情報をONにして、現在地を用意してください。");
+      return;
+    }
+
+    openLineShare(buildQuickShareText(), getLocationViewUrl() || undefined);
+    setMessage("LINEで送る画面を開きました。");
+  }
+
+  function shareQuickShareByMail() {
+    if (!emergencyLocationEnabled || (!manualLocation.trim() && !locationMapUrl)) {
+      setMessage("先に位置情報をONにして、現在地を用意してください。");
+      return;
+    }
+
+    openMailShare(`${appName}の位置シェア`, buildQuickShareText(), getLocationViewUrl() || undefined);
+    setMessage("メール作成画面を開きました。");
   }
 
   async function sendQuickShare(mode: "status" | "location", status: EmergencyStatus) {
@@ -1282,6 +1336,22 @@ export function DisasterNoteApp() {
       .catch(() => setMessage(`${statusLabels[status]}を記録しました。画面の文面を手動で送ってください。`));
   }
 
+  function shareEmergencyToLine(status: EmergencyStatus) {
+    const messageText = getEmergencyMessage(status);
+    const text = buildEmergencyShareText(status, messageText);
+    recordEmergencyStatus(status, messageText);
+    openLineShare(text, getLocationViewUrl() || undefined);
+    setMessage("LINEで送る画面を開きました。");
+  }
+
+  function shareEmergencyByMail(status: EmergencyStatus) {
+    const messageText = getEmergencyMessage(status);
+    const text = buildEmergencyShareText(status, messageText);
+    recordEmergencyStatus(status, messageText);
+    openMailShare(`${appName}の災害時連絡`, text, getLocationViewUrl() || undefined);
+    setMessage("メール作成画面を開きました。");
+  }
+
   async function sendEmergencyUpdate() {
     await sendQuickShare("status", selectedEmergencyStatus);
   }
@@ -1565,6 +1635,12 @@ export function DisasterNoteApp() {
 
       <p className="app-message">{message}</p>
 
+      <div className="top-emergency-row">
+        <button type="button" className="top-emergency-button" onClick={() => setEmergencyPanelOpen(true)}>
+          災害時モード
+        </button>
+      </div>
+
       <section className="app-screen" aria-label={appName} onTouchStart={handleScreenTouchStart} onTouchEnd={handleScreenTouchEnd}>
         <div className="screens-track" style={{ transform: `translateX(${-Math.max(0, trackScreens.findIndex((s) => s.id === activeScreen)) * 100}%)` }}>
         <div className="screen-page" aria-hidden={activeScreen !== "home"}>
@@ -1662,18 +1738,19 @@ export function DisasterNoteApp() {
                     <input
                       value={manualLocation}
                       onChange={(event) => {
-                        setManualLocation(event.target.value);
-                        setLocationMapUrl("");
+                        const nextValue = event.target.value;
+                        setManualLocation(nextValue);
+                        setLocationMapUrl(buildGoogleMapsUrl(nextValue));
                         setLocationCoords(null);
                       }}
                       placeholder="例: 駅前のカフェ、学校前、避難所"
                     />
-                    {locationMapUrl ? (
+                    {getLocationEmbedUrl() ? (
                       <>
                         <div className="map-preview-shell">
                           <iframe className="map-frame" title="現在地プレビュー" src={getLocationEmbedUrl()} loading="lazy" />
                         </div>
-                        <a className="map-preview" href={locationMapUrl} target="_blank" rel="noreferrer">
+                        <a className="map-preview" href={getLocationViewUrl()} target="_blank" rel="noreferrer">
                           Googleマップで開く
                         </a>
                       </>
@@ -1703,20 +1780,25 @@ export function DisasterNoteApp() {
                 </div>
                 <button
                   type="button"
-                  className={quickShareSending ? "wide-action is-busy" : "wide-action"}
+                  className={quickShareSending ? "wide-action share-primary-button is-busy" : "wide-action share-primary-button"}
                   onClick={() => sendQuickShare("location", selectedQuickShareStatus)}
                   disabled={quickShareSending}
                 >
                   {quickShareSending ? "送信中..." : "アプリで送る"}
                 </button>
-                <button type="button" className="secondary-action" onClick={shareQuickShareExternally}>
-                  LINEやメールで送る
-                </button>
+                <div className="share-channel-row">
+                  <button type="button" className="secondary-action" onClick={shareQuickShareToLine}>
+                    LINEで送る
+                  </button>
+                  <button type="button" className="secondary-action" onClick={shareQuickShareByMail}>
+                    メールで送る
+                  </button>
+                  <button type="button" className="secondary-action" onClick={shareQuickShareExternally}>
+                    共有文をコピー
+                  </button>
+                </div>
               </>
             )}
-            <button type="button" className="secondary-action emergency-open-button" onClick={() => setEmergencyPanelOpen(true)}>
-              災害時モードを開く
-            </button>
           </section>
 
           {homeFocusMode === "safe" ? (
@@ -2355,17 +2437,19 @@ export function DisasterNoteApp() {
                   <input
                     value={manualLocation}
                     onChange={(event) => {
-                      setManualLocation(event.target.value);
-                      setLocationMapUrl("");
+                      const nextValue = event.target.value;
+                      setManualLocation(nextValue);
+                      setLocationMapUrl(buildGoogleMapsUrl(nextValue));
+                      setLocationCoords(null);
                     }}
                     placeholder="例: 自宅、駅前、避難所名"
                   />
-                  {locationMapUrl ? (
+                  {getLocationEmbedUrl() ? (
                     <>
                       <div className="map-preview-shell">
                         <iframe className="map-frame" title="現在地プレビュー" src={getLocationEmbedUrl()} loading="lazy" />
                       </div>
-                      <a className="map-preview" href={locationMapUrl} target="_blank" rel="noreferrer">
+                      <a className="map-preview" href={getLocationViewUrl()} target="_blank" rel="noreferrer">
                         Googleマップで開く
                       </a>
                     </>
@@ -2376,13 +2460,18 @@ export function DisasterNoteApp() {
               ) : null}
               <p className="small-copy">アプリ内の災害時共有は短時間だけ反映されます。長時間の位置共有を続けたい時は「いまだけ位置共有」を使ってください。</p>
               <div className="message-actions">
-                <button type="button" className={quickShareSending ? "wide-action is-busy" : "wide-action"} onClick={sendEmergencyUpdate} disabled={quickShareSending}>
+                <button type="button" className={quickShareSending ? "wide-action emergency-primary-button is-busy" : "wide-action emergency-primary-button"} onClick={sendEmergencyUpdate} disabled={quickShareSending}>
                   {quickShareSending ? "送信中..." : "アプリ内に送信する"}
                 </button>
-                <button type="button" className="secondary-action" onClick={() => shareEmergencyText(selectedEmergencyStatus)}>
-                  LINE・メールでも送る
-                </button>
-                <button type="button" className="secondary-action" onClick={copyEmergencyText}>共有文をコピー</button>
+                <div className="share-channel-row">
+                  <button type="button" className="secondary-action" onClick={() => shareEmergencyToLine(selectedEmergencyStatus)}>
+                    LINEで送る
+                  </button>
+                  <button type="button" className="secondary-action" onClick={() => shareEmergencyByMail(selectedEmergencyStatus)}>
+                    メールで送る
+                  </button>
+                  <button type="button" className="secondary-action" onClick={copyEmergencyText}>共有文をコピー</button>
+                </div>
               </div>
             </section>
             <section className="panel compact-panel emergency-extra-panel">

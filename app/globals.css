@@ -1099,6 +1099,17 @@ button {
   color: white;
 }
 
+.home-share-panel .location-share-card .secondary-action:not(.is-selected) {
+  background: white;
+  color: var(--teal);
+  border-color: white;
+}
+
+.home-share-panel .location-share-card .secondary-action.is-selected {
+  background: #1f8cff;
+  border-color: #1f8cff;
+}
+
 .daily-check-panel .checkin-button {
   min-height: 112px;
   font-size: 1.8rem;
@@ -1156,6 +1167,23 @@ button {
 .metric-grid strong {
   color: white;
   font-size: 1.2rem;
+}
+
+.top-emergency-row {
+  margin: 0 0 12px;
+}
+
+.top-emergency-button {
+  width: 100%;
+  min-height: 52px;
+  border-color: #c2410c;
+  background: linear-gradient(135deg, #ef6a4c 0%, #c2410c 100%);
+  color: white;
+  box-shadow: 0 12px 28px rgba(194, 65, 12, 0.28);
+}
+
+.top-emergency-button:active {
+  transform: scale(0.985);
 }
 
 .family-status-metric {
@@ -1660,6 +1688,23 @@ button {
   color: var(--teal);
   font-weight: 700;
   text-decoration: none;
+}
+
+.share-channel-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.share-primary-button,
+.emergency-primary-button {
+  margin-top: 6px;
+}
+
+.emergency-primary-button {
+  background: #fff;
+  color: var(--danger);
+  border-color: #fff;
 }
 
 .member-map-link {
