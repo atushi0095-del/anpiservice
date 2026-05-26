@@ -1702,12 +1702,22 @@ button {
 
 .share-secondary-button {
   margin-top: 8px;
+  background: white;
+  color: var(--teal);
+  border-color: white;
+  box-shadow: 0 8px 18px rgba(7, 40, 37, 0.16);
 }
 
 .emergency-primary-button {
   background: #fff;
   color: var(--danger);
   border-color: #fff;
+}
+
+.message-actions .secondary-action {
+  background: white;
+  color: var(--teal);
+  border-color: white;
 }
 
 .member-map-link {

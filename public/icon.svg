@@ -2,23 +2,23 @@
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
       <stop offset="0%" stop-color="#0f8d81"/>
-      <stop offset="100%" stop-color="#125c73"/>
+      <stop offset="100%" stop-color="#147c72"/>
     </linearGradient>
     <linearGradient id="pin" x1="0" y1="0" x2="1" y2="1">
       <stop offset="0%" stop-color="#ffffff"/>
-      <stop offset="100%" stop-color="#dff8f2"/>
+      <stop offset="100%" stop-color="#f6fffd"/>
     </linearGradient>
     <linearGradient id="heart" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%" stop-color="#ff9b66"/>
-      <stop offset="100%" stop-color="#e4565d"/>
+      <stop offset="0%" stop-color="#ff8a71"/>
+      <stop offset="100%" stop-color="#ea5a5f"/>
     </linearGradient>
   </defs>
-  <rect width="512" height="512" rx="124" fill="url(#bg)"/>
-  <circle cx="256" cy="256" r="148" fill="#ffffff" opacity="0.06"/>
-  <g transform="translate(0 12) scale(0.8)">
-    <path d="M256 92c-82 0-148 66-148 148 0 100 112 188 136 206 7 6 17 6 24 0 24-18 136-106 136-206 0-82-66-148-148-148Z" fill="url(#pin)"/>
-    <circle cx="256" cy="232" r="60" fill="#f7fffd"/>
-    <path d="M256 280c42-24 69-55 69-84 0-25-17-42-41-42-12 0-23 6-28 14-6-8-16-14-29-14-24 0-41 17-41 42 0 29 28 60 70 84Z" fill="url(#heart)"/>
-    <path d="M316 336c-17 13-36 24-49 33-6 4-16 4-22 0-13-9-32-20-49-33 10-10 24-16 40-16h40c16 0 30 6 40 16Z" fill="#ffd86b"/>
+  <rect width="512" height="512" rx="128" fill="url(#bg)"/>
+  <circle cx="256" cy="256" r="158" fill="#ffffff" opacity="0.05"/>
+  <g transform="translate(0 18) scale(0.76)">
+    <path d="M256 98c-80 0-145 65-145 145 0 98 109 184 132 202 7 5 16 5 23 0 23-18 135-104 135-202 0-80-65-145-145-145Z" fill="url(#pin)"/>
+    <circle cx="256" cy="234" r="58" fill="#f7fffd"/>
+    <path d="M256 286c46-26 74-58 74-88 0-25-17-43-42-43-13 0-24 6-32 16-8-10-19-16-32-16-25 0-42 18-42 43 0 30 28 62 74 88Z" fill="url(#heart)"/>
+    <path d="M312 340c-16 11-35 22-48 31-5 4-15 4-20 0-13-9-32-20-48-31 10-10 24-16 39-16h42c15 0 29 6 35 16Z" fill="#ffd35f"/>
   </g>
 </svg>

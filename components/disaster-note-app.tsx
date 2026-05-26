@@ -845,11 +845,8 @@ export function DisasterNoteApp() {
   function getLocationEmbedUrl() {
     if (locationCoords) {
       const { latitude, longitude } = locationCoords;
-      return `https://maps.google.com/maps?q=${latitude.toFixed(5)},${longitude.toFixed(5)}&z=15&output=embed`;
-    }
-
-    if (manualLocation.trim()) {
-      return `https://maps.google.com/maps?q=${encodeURIComponent(manualLocation.trim())}&z=15&output=embed`;
+      const delta = 0.01;
+      return `https://www.openstreetmap.org/export/embed.html?bbox=${longitude - delta}%2C${latitude - delta}%2C${longitude + delta}%2C${latitude + delta}&layer=mapnik&marker=${latitude}%2C${longitude}`;
     }
 
     return "";
