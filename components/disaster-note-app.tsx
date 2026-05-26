@@ -885,16 +885,6 @@ export function DisasterNoteApp() {
     return `【ここシェア】\n${quickShareMessage.trim() || "今いる場所を共有します。"}\n${locationLine}`;
   }
 
-  function openLineShare(text: string, url?: string) {
-    const payload = url ? `${text}\n${url}` : text;
-    window.open(`https://social-plugins.line.me/lineit/share?text=${encodeURIComponent(payload)}`, "_blank", "noopener,noreferrer");
-  }
-
-  function openMailShare(subject: string, text: string, url?: string) {
-    const body = url ? `${text}\n${url}` : text;
-    window.location.href = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-  }
-
   async function shareQuickShareExternally() {
     if (!emergencyLocationEnabled || (!manualLocation.trim() && !locationMapUrl)) {
       setMessage("先に位置情報をONにして、現在地を用意してください。");
@@ -904,7 +894,7 @@ export function DisasterNoteApp() {
     const text = buildQuickShareText();
     if (navigator.share) {
       try {
-        await navigator.share({ title: appName, text, url: locationMapUrl || undefined });
+        await navigator.share({ title: appName, text, url: getLocationViewUrl() || undefined });
         setMessage("共有画面を開きました。LINEやメールを選んで送れます。");
         return;
       } catch {
@@ -918,26 +908,6 @@ export function DisasterNoteApp() {
     } catch {
       setMessage("共有文をコピーできませんでした。");
     }
-  }
-
-  function shareQuickShareToLine() {
-    if (!emergencyLocationEnabled || (!manualLocation.trim() && !locationMapUrl)) {
-      setMessage("先に位置情報をONにして、現在地を用意してください。");
-      return;
-    }
-
-    openLineShare(buildQuickShareText(), getLocationViewUrl() || undefined);
-    setMessage("LINEで送る画面を開きました。");
-  }
-
-  function shareQuickShareByMail() {
-    if (!emergencyLocationEnabled || (!manualLocation.trim() && !locationMapUrl)) {
-      setMessage("先に位置情報をONにして、現在地を用意してください。");
-      return;
-    }
-
-    openMailShare(`${appName}の位置シェア`, buildQuickShareText(), getLocationViewUrl() || undefined);
-    setMessage("メール作成画面を開きました。");
   }
 
   async function sendQuickShare(mode: "status" | "location", status: EmergencyStatus) {
@@ -1324,7 +1294,7 @@ export function DisasterNoteApp() {
 
     if (navigator.share) {
       navigator
-        .share({ title: appName, text })
+        .share({ title: appName, text, url: getLocationViewUrl() || undefined })
         .then(() => setMessage(`${statusLabels[status]}を記録し、共有画面を開きました。`))
         .catch(() => setMessage(`${statusLabels[status]}を記録しました。共有を中止した場合は、共有文をコピーして送れます。`));
       return;
@@ -1336,21 +1306,6 @@ export function DisasterNoteApp() {
       .catch(() => setMessage(`${statusLabels[status]}を記録しました。画面の文面を手動で送ってください。`));
   }
 
-  function shareEmergencyToLine(status: EmergencyStatus) {
-    const messageText = getEmergencyMessage(status);
-    const text = buildEmergencyShareText(status, messageText);
-    recordEmergencyStatus(status, messageText);
-    openLineShare(text, getLocationViewUrl() || undefined);
-    setMessage("LINEで送る画面を開きました。");
-  }
-
-  function shareEmergencyByMail(status: EmergencyStatus) {
-    const messageText = getEmergencyMessage(status);
-    const text = buildEmergencyShareText(status, messageText);
-    recordEmergencyStatus(status, messageText);
-    openMailShare(`${appName}の災害時連絡`, text, getLocationViewUrl() || undefined);
-    setMessage("メール作成画面を開きました。");
-  }
 
   async function sendEmergencyUpdate() {
     await sendQuickShare("status", selectedEmergencyStatus);
@@ -1786,17 +1741,9 @@ export function DisasterNoteApp() {
                 >
                   {quickShareSending ? "送信中..." : "アプリで送る"}
                 </button>
-                <div className="share-channel-row">
-                  <button type="button" className="secondary-action" onClick={shareQuickShareToLine}>
-                    LINEで送る
-                  </button>
-                  <button type="button" className="secondary-action" onClick={shareQuickShareByMail}>
-                    メールで送る
-                  </button>
-                  <button type="button" className="secondary-action" onClick={shareQuickShareExternally}>
-                    共有文をコピー
-                  </button>
-                </div>
+                <button type="button" className="secondary-action share-secondary-button" onClick={shareQuickShareExternally}>
+                  他のアプリで送る
+                </button>
               </>
             )}
           </section>
@@ -2463,15 +2410,10 @@ export function DisasterNoteApp() {
                 <button type="button" className={quickShareSending ? "wide-action emergency-primary-button is-busy" : "wide-action emergency-primary-button"} onClick={sendEmergencyUpdate} disabled={quickShareSending}>
                   {quickShareSending ? "送信中..." : "アプリ内に送信する"}
                 </button>
-                <div className="share-channel-row">
-                  <button type="button" className="secondary-action" onClick={() => shareEmergencyToLine(selectedEmergencyStatus)}>
-                    LINEで送る
-                  </button>
-                  <button type="button" className="secondary-action" onClick={() => shareEmergencyByMail(selectedEmergencyStatus)}>
-                    メールで送る
-                  </button>
-                  <button type="button" className="secondary-action" onClick={copyEmergencyText}>共有文をコピー</button>
-                </div>
+                <button type="button" className="secondary-action share-secondary-button" onClick={() => shareEmergencyText(selectedEmergencyStatus)}>
+                  他のアプリで送る
+                </button>
+                <button type="button" className="secondary-action" onClick={copyEmergencyText}>共有文をコピー</button>
               </div>
             </section>
             <section className="panel compact-panel emergency-extra-panel">

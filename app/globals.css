@@ -1690,15 +1690,18 @@ button {
   text-decoration: none;
 }
 
-.share-channel-row {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 8px;
-}
-
 .share-primary-button,
 .emergency-primary-button {
   margin-top: 6px;
+}
+
+.share-primary-button {
+  position: relative;
+  z-index: 1;
+}
+
+.share-secondary-button {
+  margin-top: 8px;
 }
 
 .emergency-primary-button {
