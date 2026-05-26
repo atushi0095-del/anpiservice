@@ -37,5 +37,9 @@ service cloud.firestore {
     match /quickShares/{shareId} {
       allow read, write: if false;
     }
+
+    match /rateLimits/{limitId} {
+      allow read, write: if false;
+    }
   }
 }

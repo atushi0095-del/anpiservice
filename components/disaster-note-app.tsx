@@ -53,6 +53,7 @@ type LocationCoords = {
   longitude: number;
 };
 type QuickSharePresetId = "meetup" | "heading_home" | "check_in";
+type HomeFocusMode = "safe" | "share";
 type ConsentDoc = {
   id: "terms" | "privacy" | "disclaimer";
   title: string;
@@ -379,6 +380,7 @@ function loadLocalData(): DisasterNoteData {
 
 export function DisasterNoteApp() {
   const [activeScreen, setActiveScreen] = useState<AppScreen>("home");
+  const [homeFocusMode, setHomeFocusMode] = useState<HomeFocusMode>("safe");
   const [data, setData] = useState<DisasterNoteData>(defaultDisasterNoteData);
   const [ready, setReady] = useState(false);
   const [message, setMessage] = useState("端末に保存して、オフラインでも家族の備えを確認できます。");
@@ -716,7 +718,7 @@ export function DisasterNoteApp() {
 
   function getMemberStatusDetail(member: FamilyStatusView) {
     if (member.latestShare?.shareMode === "location") {
-      return "いまだけ位置共有中";
+      return "ここシェア中";
     }
 
     if (member.latestStatusAt) {
@@ -833,7 +835,7 @@ export function DisasterNoteApp() {
     applyQuickSharePreset("check_in");
     if (!emergencyLocationEnabled) {
       setEmergencyLocationEnabled(true);
-      setMessage("いまだけ位置共有を準備しています。現在地の取得許可を確認してください。");
+      setMessage("ここシェアを準備しています。現在地の取得許可を確認してください。");
       fillCurrentLocation();
     }
   }
@@ -889,7 +891,7 @@ export function DisasterNoteApp() {
       }
 
       await refreshWatchConnections(cloudUser);
-      setMessage(mode === "location" ? "いまだけ位置共有を送りました。" : `${statusLabels[status]}を共有しました。`);
+      setMessage(mode === "location" ? "ここシェアを送りました。" : `${statusLabels[status]}を共有しました。`);
       closePanel?.();
       setQuickSharePanelOpen(false);
       setEmergencyPanelOpen(false);
@@ -1513,7 +1515,7 @@ export function DisasterNoteApp() {
         <button type="button" className="brand-row brand-home-button" onClick={() => switchScreen("home")} aria-label="確認画面へ戻る">
           <img src="/icon.svg" alt={appName} className="app-icon" />
           <div>
-            <p className="eyebrow">防災といまだけ位置共有</p>
+            <p className="eyebrow">安否共有とここシェア</p>
             <h1>{appName}</h1>
           </div>
         </button>
@@ -1532,27 +1534,55 @@ export function DisasterNoteApp() {
       <section className="app-screen" aria-label={appName} onTouchStart={handleScreenTouchStart} onTouchEnd={handleScreenTouchEnd}>
         <div className="screens-track" style={{ transform: `translateX(${-Math.max(0, trackScreens.findIndex((s) => s.id === activeScreen)) * 100}%)` }}>
         <div className="screen-page" aria-hidden={activeScreen !== "home"}>
-          <section className={dailyJustChecked ? "status-panel daily-check-panel checkin-complete" : "status-panel daily-check-panel"}>
-            <p className="panel-label">日常の安否確認</p>
-            <h2>{dailyJustChecked ? "今日の安否確認が完了しました" : "無事を家族に残す"}</h2>
-            <button
-              type="button"
-              className={dailyJustChecked ? "checkin-button is-complete" : "checkin-button"}
-              onClick={recordDailyCheckIn}
-            >
-              無事です
-            </button>
-            <button type="button" className="emergency-launch" onClick={openQuickLocationShare}>
-              いまだけ位置共有
-            </button>
+          <section className={dailyJustChecked && homeFocusMode === "safe" ? "status-panel daily-check-panel checkin-complete" : "status-panel daily-check-panel"}>
+            <p className="panel-label">ホーム</p>
+            <h2>{homeFocusMode === "safe" ? "無事を知らせる" : "ここシェア"}</h2>
+            <div className="home-mode-toggle" role="tablist" aria-label="ホームの使い方">
+              <button
+                type="button"
+                role="tab"
+                aria-selected={homeFocusMode === "safe"}
+                className={homeFocusMode === "safe" ? "is-active" : ""}
+                onClick={() => setHomeFocusMode("safe")}
+              >
+                無事を知らせる
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={homeFocusMode === "share"}
+                className={homeFocusMode === "share" ? "is-active" : ""}
+                onClick={() => setHomeFocusMode("share")}
+              >
+                ここシェア
+              </button>
+            </div>
+            {homeFocusMode === "safe" ? (
+              <>
+                <button
+                  type="button"
+                  className={dailyJustChecked ? "checkin-button is-complete" : "checkin-button"}
+                  onClick={recordDailyCheckIn}
+                >
+                  {dailyJustChecked ? "本日完了" : "無事です"}
+                </button>
+                <p className="checkin-feedback">
+                  {dailyJustChecked
+                    ? `最終安否確認: ${formatDate(data.members[0]?.latestStatusAt || data.statusLogs[0]?.createdAt || "")}`
+                    : "日常の無事連絡をすぐ残せます。急ぎの時も、このボタンだけで伝えられます。"}
+                </p>
+              </>
+            ) : (
+              <>
+                <button type="button" className="emergency-launch" onClick={openQuickLocationShare}>
+                  ここシェアを開く
+                </button>
+                <p className="checkin-feedback">待ち合わせ、帰宅中、今いる場所を、必要な相手にだけ時間限定で共有できます。</p>
+              </>
+            )}
             <button type="button" className="secondary-action emergency-open-button" onClick={() => setEmergencyPanelOpen(true)}>
               災害時モードを開く
             </button>
-            <p className="checkin-feedback">
-              {dailyJustChecked
-                ? `最終安否確認: ${formatDate(data.members[0]?.latestStatusAt || data.statusLogs[0]?.createdAt || "")}`
-                : "日常の無事連絡、いまだけ位置共有、災害時の送信をここから使い分けられます。"}
-            </p>
           </section>
 
           <section className="status-panel disaster-home">
@@ -1654,7 +1684,7 @@ export function DisasterNoteApp() {
             <p className="panel-label">つながり</p>
             <h2>家族と友達を分けてつなぐ</h2>
             <p className="small-copy">
-              家族と友達を分けて管理できます。相手が承認すると、安否確認や「いまだけ位置共有」を相手ごとに使い分けられます。
+              家族と友達を分けて管理できます。相手が承認すると、安否確認や「ここシェア」を相手ごとに使い分けられます。
             </p>
             <div className="mutual-watch-card">
               <div>
@@ -1689,7 +1719,7 @@ export function DisasterNoteApp() {
                           <strong>{target.member.displayName}</strong>
                           <span>
                             {incomingShareBySender.get(target.member.id)?.shareMode === "location"
-                              ? "いまだけ位置共有中"
+                              ? "ここシェア中"
                               : target.latestCheckIn
                                 ? `最終確認 ${formatDate(target.latestCheckIn.checkedAt)}`
                                 : "まだ確認記録なし"}
@@ -2111,10 +2141,10 @@ export function DisasterNoteApp() {
 
       {quickSharePanelOpen ? (
         <div className="status-modal-backdrop emergency-panel-backdrop" role="presentation" onClick={() => setQuickSharePanelOpen(false)}>
-          <section className="emergency-sheet" role="dialog" aria-modal="true" aria-label="いまだけ位置共有" onClick={(event) => event.stopPropagation()}>
+          <section className="emergency-sheet" role="dialog" aria-modal="true" aria-label="ここシェア" onClick={(event) => event.stopPropagation()}>
             <div className="emergency-sheet-header">
               <div>
-                <p className="panel-label">いまだけ位置共有</p>
+                <p className="panel-label">ここシェア</p>
                 <h2>選んだ相手にだけ送る</h2>
               </div>
               <button type="button" className="back-to-home emergency-close-button" onClick={() => setQuickSharePanelOpen(false)}>

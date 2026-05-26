@@ -1043,8 +1043,29 @@ button {
 }
 
 .daily-check-panel {
-  min-height: 300px;
-  gap: 14px;
+  min-height: 280px;
+  gap: 12px;
+}
+
+.home-mode-toggle {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.home-mode-toggle button {
+  min-height: 44px;
+  border: 1px solid rgba(255, 255, 255, 0.34);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.88);
+  font-weight: 800;
+}
+
+.home-mode-toggle button.is-active {
+  background: white;
+  color: var(--teal);
+  box-shadow: 0 8px 18px rgba(7, 40, 37, 0.16);
 }
 
 .daily-check-panel .checkin-button {

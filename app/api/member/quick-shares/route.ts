@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAdminDb } from "@/lib/firebase-admin";
 import { apiError, requireUser } from "@/lib/api-auth";
+import { enforceRateLimit } from "@/lib/rate-limit";
 import type { QuickShare, ShareMode, ShareStatus, WatchLink } from "@/lib/types";
 
 export const runtime = "nodejs";
@@ -52,6 +53,12 @@ function validateMapUrl(value?: string) {
 export async function POST(request: NextRequest) {
   try {
     const user = await requireUser(request);
+    await enforceRateLimit({
+      scope: "quick_share",
+      subject: user.uid,
+      maxRequests: 20,
+      windowMs: 10 * 60 * 1000
+    });
     const body = (await request.json()) as QuickShareBody;
     const recipientIds = normalizeStringArray(body.recipientIds);
     const connectionIds = normalizeStringArray(body.connectionIds);

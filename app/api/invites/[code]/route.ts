@@ -2,6 +2,7 @@ import { randomBytes } from "node:crypto";
 import { FieldValue } from "firebase-admin/firestore";
 import { NextRequest, NextResponse } from "next/server";
 import { getAdminAuth, getAdminDb } from "@/lib/firebase-admin";
+import { enforceRateLimit } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
 
@@ -82,6 +83,12 @@ export async function POST(request: NextRequest, context: RouteContext) {
     }
 
     const decoded = await getAdminAuth().verifyIdToken(idToken);
+    await enforceRateLimit({
+      scope: "invite_accept",
+      subject: `${decoded.uid}:${code}`,
+      maxRequests: 6,
+      windowMs: 10 * 60 * 1000
+    });
     const body = (await request.json().catch(() => ({}))) as { mutualWatch?: boolean };
     const db = getAdminDb();
     const inviteDoc = await findInvite(code);

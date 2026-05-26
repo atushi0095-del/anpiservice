@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { apiError, requireUser } from "@/lib/api-auth";
+import { enforceRateLimit } from "@/lib/rate-limit";
 import { addFamilyContactAdmin } from "@/lib/server-store";
 import type { ConnectionType } from "@/lib/types";
 
@@ -12,6 +13,12 @@ function isValidEmailAddress(value: string) {
 export async function POST(request: NextRequest) {
   try {
     const user = await requireUser(request);
+    await enforceRateLimit({
+      scope: "family_invite",
+      subject: user.uid,
+      maxRequests: 8,
+      windowMs: 10 * 60 * 1000
+    });
     const body = (await request.json()) as {
       familyName?: string;
       familyEmail?: string;

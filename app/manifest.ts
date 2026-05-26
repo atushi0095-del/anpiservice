@@ -6,7 +6,7 @@ export default function manifest(): MetadataRoute.Manifest {
   return {
     name: "いまここ安否ノート",
     short_name: "いまここ安否",
-    description: "防災メモと時間限定の位置共有をまとめ、日常にも災害時にも使いやすくしたPWAです。",
+    description: "安否共有、防災メモ、ここシェアをまとめて使えるPWAです。",
     start_url: "/",
     display: "standalone",
     background_color: "#f7faf9",
