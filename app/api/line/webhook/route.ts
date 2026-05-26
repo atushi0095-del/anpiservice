@@ -5,6 +5,8 @@ import { replyLineMessage, verifyLineSignature } from "@/lib/line-server";
 
 export const runtime = "nodejs";
 
+const inviteCodePattern = /^ANPI-[A-Z0-9]{6,12}$/;
+
 type LineWebhookBody = {
   events?: Array<{
     type: string;
@@ -50,8 +52,8 @@ async function handleLineEvent(event: NonNullable<LineWebhookBody["events"]>[num
     return;
   }
 
-  if (!userId || !/^ANPI-\d{6}$/.test(text)) {
-    await replyLineMessage(event.replyToken, "いまここ安否ノートの連携コードを送ってください。例: ANPI-123456");
+  if (!userId || !inviteCodePattern.test(text)) {
+    await replyLineMessage(event.replyToken, "いまここ安否ノートの連携コードを送ってください。例: ANPI-A1B2C3D4");
     return;
   }
 
@@ -64,7 +66,7 @@ async function handleLineEvent(event: NonNullable<LineWebhookBody["events"]>[num
     .get();
 
   if (linksSnapshot.empty) {
-    await replyLineMessage(event.replyToken, "連携コードが見つかりません。アプリに表示されているコードを確認してください。");
+    await replyLineMessage(event.replyToken, "連携コードが見つかりません。アプリに表示されているコードをもう一度送ってください。");
     return;
   }
 
@@ -87,5 +89,5 @@ async function handleLineEvent(event: NonNullable<LineWebhookBody["events"]>[num
     createdAt: FieldValue.serverTimestamp()
   });
 
-  await replyLineMessage(event.replyToken, "いまここ安否ノートのLINE連携が完了しました。未チェックイン時はこちらへ通知します。");
+  await replyLineMessage(event.replyToken, "いまここ安否ノートのLINE連携が完了しました。必要な時はこちらへ通知します。");
 }

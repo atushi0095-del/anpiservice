@@ -36,7 +36,7 @@ export function toAppErrorMessage(error: unknown) {
     message.includes("firestore.googleapis.com") ||
     message.includes("PERMISSION_DENIED")
   ) {
-    return "Firebase の Firestore がまだ有効になっていません。Firebase コンソールで Firestore Database を有効化し、数分待ってからもう一度お試しください。";
+    return "Firebase の Firestore がまだ有効になっていません。Firebase コンソールで Firestore Database を有効化し、少し待ってからもう一度お試しください。";
   }
 
   if (message.includes("invite-error:")) {
@@ -44,7 +44,7 @@ export function toAppErrorMessage(error: unknown) {
   }
 
   if (message.includes("client is offline") || message.includes("offline") || message.includes("unavailable")) {
-    return "通信できませんでした。インターネット接続を確認し、少し時間をおいてからもう一度お試しください。";
+    return "通信できませんでした。インターネット接続を確認し、少し時間をおいてもう一度お試しください。";
   }
 
   if (message.includes("permission-denied") || message.includes("Missing or insufficient permissions")) {
@@ -56,7 +56,7 @@ export function toAppErrorMessage(error: unknown) {
   }
 
   if (message.includes("Firebase environment variables")) {
-    return "Firebase の設定が不足しています。Vercel の環境変数とデプロイ設定を確認してください。";
+    return "Firebase の設定が不足しています。Vercel の環境変数と Firebase 設定を確認してください。";
   }
 
   return message || "処理に失敗しました。";

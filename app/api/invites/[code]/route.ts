@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import { FieldValue } from "firebase-admin/firestore";
 import { NextRequest, NextResponse } from "next/server";
 import { getAdminAuth, getAdminDb } from "@/lib/firebase-admin";
@@ -32,6 +33,10 @@ function normalizeCode(value: string) {
   return decodeURIComponent(value).trim().toUpperCase();
 }
 
+function createInviteCode() {
+  return `ANPI-${randomBytes(5).toString("hex").toUpperCase()}`;
+}
+
 async function findInvite(code: string) {
   const db = getAdminDb();
   const snapshot = await db.collection("watchLinks").where("lineLinkCode", "==", code).limit(1).get();
@@ -60,7 +65,7 @@ export async function GET(_request: NextRequest, context: RouteContext) {
     member: {
       id: invite.memberId,
       displayName: member?.displayName || "利用者",
-      email: member?.email || ""
+      email: ""
     }
   });
 }
@@ -87,6 +92,13 @@ export async function POST(request: NextRequest, context: RouteContext) {
 
     const invite = inviteDoc.data() as WatchLinkRecord;
     const now = new Date().toISOString();
+    const decodedEmail = (decoded.email || "").trim().toLowerCase();
+    const invitedEmail = (invite.familyEmail || "").trim().toLowerCase();
+
+    if (decodedEmail && invitedEmail && decodedEmail !== invitedEmail) {
+      return NextResponse.json({ error: "招待されたメールアドレスでログインしてください。" }, { status: 403 });
+    }
+
     const familyEmail = decoded.email || invite.familyEmail;
     const familyName = decoded.name || invite.familyName || familyEmail.split("@")[0] || "家族";
     const acceptedLinkId = `${invite.memberId}_${decoded.uid}`;
@@ -122,8 +134,8 @@ export async function POST(request: NextRequest, context: RouteContext) {
       const reverseLinkRef = db.collection("watchLinks").doc(`${decoded.uid}_${invite.memberId}`);
       const reverseLink = await reverseLinkRef.get();
       const reverseCode = reverseLink.exists
-        ? (reverseLink.data()?.lineLinkCode as string | undefined) || `ANPI-${Math.floor(100000 + Math.random() * 900000)}`
-        : `ANPI-${Math.floor(100000 + Math.random() * 900000)}`;
+        ? (reverseLink.data()?.lineLinkCode as string | undefined) || createInviteCode()
+        : createInviteCode();
       const memberDoc = await db.collection("users").doc(invite.memberId).get();
       const member = memberDoc.data();
       const existingFamilyUser = await db.collection("users").doc(decoded.uid).get();

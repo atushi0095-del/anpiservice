@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAdminAuth, getAdminDb } from "@/lib/firebase-admin";
 
 export const runtime = "nodejs";
+const inviteCodePattern = /^ANPI-[A-Z0-9]{6,12}$/;
 
 type RegisterPushBody = {
   lineLinkCode?: string;
@@ -56,7 +57,7 @@ export async function POST(request: NextRequest) {
     });
   }
 
-  if (!lineLinkCode || !/^ANPI-\d{6}$/.test(lineLinkCode)) {
+  if (!lineLinkCode || !inviteCodePattern.test(lineLinkCode)) {
     return NextResponse.json({ error: "Valid lineLinkCode or userId is required." }, { status: 400 });
   }
 

@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import { getAdminDb } from "@/lib/firebase-admin";
 import { createCheckIn } from "@/lib/safety";
 import type {
@@ -49,8 +50,7 @@ function byNewestDate<T>(field: keyof T) {
 }
 
 function createLineLinkCode(): string {
-  const value = Math.floor(100000 + Math.random() * 900000);
-  return `ANPI-${value}`;
+  return `ANPI-${randomBytes(5).toString("hex").toUpperCase()}`;
 }
 
 function normalizeLog(id: string, data: Omit<NotificationLog, "id">): NotificationLog {
