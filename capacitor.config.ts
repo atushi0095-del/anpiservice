@@ -7,7 +7,7 @@ const serverUrl =
 
 const config: CapacitorConfig = {
   appId: "jp.anpinote.app",
-  appName: "いまここ安否ノート",
+  appName: "ここシェア",
   webDir: "public",
   server: {
     androidScheme: "https",

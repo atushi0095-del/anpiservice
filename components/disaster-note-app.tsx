@@ -63,7 +63,7 @@ type ConsentDoc = {
 };
 
 const storageKey = "kazoku-bosai-note-v1";
-const appName = "いまここ安否ノート";
+const appName = "ここシェア";
 
 const screens: Array<{ id: AppScreen; label: string }> = [
   { id: "home", label: "確認" },
@@ -1515,7 +1515,7 @@ export function DisasterNoteApp() {
         <button type="button" className="brand-row brand-home-button" onClick={() => switchScreen("home")} aria-label="確認画面へ戻る">
           <img src="/icon.svg" alt={appName} className="app-icon" />
           <div>
-            <p className="eyebrow">安否共有とここシェア</p>
+            <p className="eyebrow">安否確認と位置シェア</p>
             <h1>{appName}</h1>
           </div>
         </button>
@@ -1536,7 +1536,7 @@ export function DisasterNoteApp() {
         <div className="screen-page" aria-hidden={activeScreen !== "home"}>
           <section className={dailyJustChecked && homeFocusMode === "safe" ? "status-panel daily-check-panel checkin-complete" : "status-panel daily-check-panel"}>
             <p className="panel-label">ホーム</p>
-            <h2>{homeFocusMode === "safe" ? "無事を知らせる" : "ここシェア"}</h2>
+            <h2>{homeFocusMode === "safe" ? "安否確認" : "位置シェア"}</h2>
             <div className="home-mode-toggle" role="tablist" aria-label="ホームの使い方">
               <button
                 type="button"
@@ -1545,7 +1545,7 @@ export function DisasterNoteApp() {
                 className={homeFocusMode === "safe" ? "is-active" : ""}
                 onClick={() => setHomeFocusMode("safe")}
               >
-                無事を知らせる
+                安否確認
               </button>
               <button
                 type="button"
@@ -1554,7 +1554,7 @@ export function DisasterNoteApp() {
                 className={homeFocusMode === "share" ? "is-active" : ""}
                 onClick={() => setHomeFocusMode("share")}
               >
-                ここシェア
+                位置シェア
               </button>
             </div>
             {homeFocusMode === "safe" ? (
@@ -1585,6 +1585,8 @@ export function DisasterNoteApp() {
             </button>
           </section>
 
+          {homeFocusMode === "safe" ? (
+          <>
           <section className="status-panel disaster-home">
             <p className="panel-label">今日の安否ステータス</p>
             <h2>{monthlyTaskDone ? "今月の備え確認は完了しています" : "今月の備え確認をしましょう"}</h2>
@@ -1645,15 +1647,8 @@ export function DisasterNoteApp() {
             <p>{latestLog ? latestLog.message : "有事の状態共有を記録するとここに表示されます。"}</p>
           </section>
 
-          <section className="panel compact-panel">
-            <p className="panel-label">PDF・印刷</p>
-            <h2>紙の控えを作る</h2>
-            <p>家族情報、緊急連絡先、避難場所、防災備蓄を1枚にまとめて印刷できます。スマホが使えない時の備えに。</p>
-            <button type="button" className="wide-action" onClick={printSafetyNote}>
-              PDF・印刷で保存
-            </button>
-            <p className="small-copy">iPhoneは「Safari → 共有 → PDFを保存」、Androidは「印刷 → PDFに保存」でPDF化できます。</p>
-          </section>
+          </>
+          ) : null}
         </div>
 
         <div className="screen-page" aria-hidden={activeScreen !== "family"}>
@@ -1682,26 +1677,13 @@ export function DisasterNoteApp() {
 
           <section className="panel">
             <p className="panel-label">つながり</p>
-            <h2>家族と友達を分けてつなぐ</h2>
-            <p className="small-copy">
-              家族と友達を分けて管理できます。相手が承認すると、安否確認や「ここシェア」を相手ごとに使い分けられます。
-            </p>
-            <div className="mutual-watch-card">
-              <div>
-                <p className="panel-label">共有の考え方</p>
-                <h3>必要な相手にだけ共有</h3>
-                <p>常時位置共有はせず、承認した相手にだけ無事連絡や時間限定の位置共有を送れます。災害時は現在地を1回だけ添えて送る使い方です。</p>
-              </div>
-              <button type="button" onClick={() => cloudUser ? refreshWatchConnections(cloudUser) : setActiveScreen("settings")}>
-                {cloudUser ? "つながりを更新" : "ログインして使う"}
-              </button>
-            </div>
+            <h2>グループ作成</h2>
             <div className="connect-form">
               <select value={watchType} onChange={(event) => setWatchType(event.target.value as ConnectionType)} aria-label="つながりの種類">
-                <option value="family">家族としてつなぐ</option>
-                <option value="friend">友達としてつなぐ</option>
+                <option value="family">家族グループ</option>
+                <option value="friend">友達グループ</option>
               </select>
-              <input value={watchName} onChange={(event) => setWatchName(event.target.value)} placeholder="つながる相手の名前" />
+              <input value={watchName} onChange={(event) => setWatchName(event.target.value)} placeholder="追加する相手の名前" />
               <input value={watchEmail} onChange={(event) => setWatchEmail(event.target.value)} placeholder="相手のメールアドレス" type="email" />
               <button type="button" className={watchAdding ? "is-busy" : ""} onClick={addWatchInvite} disabled={watchAdding}>
                 {watchAdding ? "招待作成中..." : "招待を作成する"}
@@ -1896,6 +1878,16 @@ export function DisasterNoteApp() {
                 </a>
               ))}
             </div>
+          </section>
+
+          <section className="panel compact-panel">
+            <p className="panel-label">PDF・印刷</p>
+            <h2>紙の控えを作る</h2>
+            <p>家族情報、緊急連絡先、避難場所、防災備蓄を1枚にまとめて印刷できます。スマホが使えない時の備えに。</p>
+            <button type="button" className="wide-action" onClick={printSafetyNote}>
+              PDF・印刷で保存
+            </button>
+            <p className="small-copy">iPhoneは「Safari → 共有 → PDFを保存」、Androidは「印刷 → PDFに保存」でPDF化できます。</p>
           </section>
         </div>
 

@@ -3,11 +3,11 @@ export default function TermsPage() {
     <main className="legal-page">
       <article className="legal-content">
         <a href="/" className="back-link">
-          いまここ安否ノートへ戻る
+          ここシェアへ戻る
         </a>
         <h1>利用規約</h1>
         <p>
-          いまここ安否ノートは、日常の見守り、防災メモ、時間限定の位置共有を助けるためのサービスです。
+          ここシェアは、日常の見守り、防災メモ、時間限定の位置共有を助けるためのサービスです。
           災害の予測、救助、医療判断、通報代行を行うものではありません。
         </p>
 

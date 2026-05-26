@@ -140,7 +140,7 @@ async function sendSelfReminder(user: UserProfile | undefined): Promise<SendResu
       await getAdminMessaging().send({
         token: user.pushToken,
         notification: {
-          title: "いまここ安否ノート",
+          title: "ここシェア",
           body: SELF_REMINDER_TEXT
         },
         data: {
@@ -229,7 +229,7 @@ async function tryPushNotification(link: WatchLink): Promise<SendResult> {
     await getAdminMessaging().send({
       token: link.pushToken,
       notification: {
-        title: "いまここ安否ノート",
+        title: "ここシェア",
         body: FAMILY_ALERT_TEXT
       },
       data: {

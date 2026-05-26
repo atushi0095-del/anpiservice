@@ -3,11 +3,11 @@ export default function DisclaimerPage() {
     <main className="legal-page">
       <article className="legal-content">
         <a href="/" className="back-link">
-          いまここ安否ノートへ戻る
+          ここシェアへ戻る
         </a>
         <h1>免責事項</h1>
         <p>
-          いまここ安否ノートは、防災と安否共有を助ける補助サービスです。安全の保証、救助の保証、必ず連絡できる保証は行いません。
+          ここシェアは、防災と安否共有を助ける補助サービスです。安全の保証、救助の保証、必ず連絡できる保証は行いません。
         </p>
 
         <h2>通信と共有について</h2>

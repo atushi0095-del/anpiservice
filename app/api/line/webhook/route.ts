@@ -53,7 +53,7 @@ async function handleLineEvent(event: NonNullable<LineWebhookBody["events"]>[num
   }
 
   if (!userId || !inviteCodePattern.test(text)) {
-    await replyLineMessage(event.replyToken, "いまここ安否ノートの連携コードを送ってください。例: ANPI-A1B2C3D4");
+    await replyLineMessage(event.replyToken, "ここシェアの連携コードを送ってください。例: ANPI-A1B2C3D4");
     return;
   }
 
@@ -89,5 +89,5 @@ async function handleLineEvent(event: NonNullable<LineWebhookBody["events"]>[num
     createdAt: FieldValue.serverTimestamp()
   });
 
-  await replyLineMessage(event.replyToken, "いまここ安否ノートのLINE連携が完了しました。必要な時はこちらへ通知します。");
+  await replyLineMessage(event.replyToken, "ここシェアのLINE連携が完了しました。必要な時はこちらへ通知します。");
 }

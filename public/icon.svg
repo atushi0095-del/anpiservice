@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="いまここ安否ノート">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="ここシェア">
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
       <stop offset="0%" stop-color="#0f8d81"/>
@@ -14,9 +14,11 @@
     </linearGradient>
   </defs>
   <rect width="512" height="512" rx="124" fill="url(#bg)"/>
-  <circle cx="256" cy="256" r="156" fill="#ffffff" opacity="0.08"/>
-  <path d="M256 92c-82 0-148 66-148 148 0 100 112 188 136 206 7 6 17 6 24 0 24-18 136-106 136-206 0-82-66-148-148-148Z" fill="url(#pin)"/>
-  <circle cx="256" cy="232" r="76" fill="#f7fffd"/>
-  <path d="M256 282c42-24 70-57 70-87 0-25-17-42-41-42-12 0-23 5-29 14-6-9-17-14-29-14-24 0-41 17-41 42 0 30 28 63 70 87Z" fill="url(#heart)"/>
-  <path d="M320 344c-19 14-40 25-54 35-6 4-14 4-20 0-14-10-35-21-54-35 11-12 27-19 44-19h40c17 0 33 7 44 19Z" fill="#ffd86b"/>
+  <circle cx="256" cy="256" r="148" fill="#ffffff" opacity="0.06"/>
+  <g transform="translate(0 18) scale(0.84)">
+    <path d="M256 92c-82 0-148 66-148 148 0 100 112 188 136 206 7 6 17 6 24 0 24-18 136-106 136-206 0-82-66-148-148-148Z" fill="url(#pin)"/>
+    <circle cx="256" cy="232" r="66" fill="#f7fffd"/>
+    <path d="M256 274c36-20 60-49 60-75 0-22-15-37-36-37-11 0-20 5-24 12-5-7-14-12-25-12-21 0-36 15-36 37 0 26 24 55 61 75Z" fill="url(#heart)"/>
+    <path d="M310 328c-16 12-33 22-45 30-5 4-13 4-18 0-12-8-29-18-45-30 10-10 24-16 39-16h30c15 0 29 6 39 16Z" fill="#ffd86b"/>
+  </g>
 </svg>

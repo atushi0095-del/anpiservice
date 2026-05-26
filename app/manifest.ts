@@ -4,9 +4,9 @@ export const dynamic = "force-static";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "いまここ安否ノート",
-    short_name: "いまここ安否",
-    description: "安否共有、防災メモ、ここシェアをまとめて使えるPWAです。",
+    name: "ここシェア",
+    short_name: "ここシェア",
+    description: "安否確認と時間限定の位置シェアをまとめて使えるPWAです。",
     start_url: "/",
     display: "standalone",
     background_color: "#f7faf9",

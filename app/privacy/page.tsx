@@ -3,11 +3,11 @@ export default function PrivacyPage() {
     <main className="legal-page">
       <article className="legal-content">
         <a href="/" className="back-link">
-          いまここ安否ノートへ戻る
+          ここシェアへ戻る
         </a>
         <h1>プライバシーポリシー</h1>
         <p>
-          いまここ安否ノートは、家族や友達との安否共有、防災メモ、防災備蓄、時間限定の位置共有を助けるために必要な情報を取り扱います。
+          ここシェアは、家族や友達との安否共有、防災メモ、防災備蓄、時間限定の位置共有を助けるために必要な情報を取り扱います。
           防災ノート本文は端末保存を基本とし、共有に必要な最小限の情報のみサーバーで扱います。
         </p>
 

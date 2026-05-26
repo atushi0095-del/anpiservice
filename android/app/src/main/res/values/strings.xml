@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">いまここ安否ノート</string>
-    <string name="title_activity_main">いまここ安否ノート</string>
+    <string name="app_name">ここシェア</string>
+    <string name="title_activity_main">ここシェア</string>
     <string name="package_name">jp.anpinote.app</string>
     <string name="custom_url_scheme">jp.anpinote.app</string>
 </resources>

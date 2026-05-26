@@ -27,7 +27,7 @@ type InvitePreview = {
   };
 };
 
-const appName = "いまここ安否ノート";
+const appName = "ここシェア";
 
 export function InviteAcceptance({ code }: InviteAcceptanceProps) {
   const firebaseEnabled = hasFirebaseConfig();

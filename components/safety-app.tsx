@@ -71,16 +71,16 @@ function createLineLinkCode(): string {
 }
 
 function inviteMailHref(link: WatchLink, inviteUrl: string) {
-  const subject = encodeURIComponent("いまここ安否ノート 見守り連絡先のお願い");
+  const subject = encodeURIComponent("ここシェア 見守り連絡先のお願い");
   const body = encodeURIComponent(
-    `${link.familyName}さん\n\nいまここ安否ノートの見守り連絡先として招待しました。\n次のリンクを開いて、メール登録またはログイン後に承認してください。\n\n${inviteUrl}\n\n承認後、未チェックイン時はアプリ通知またはメールでお知らせします。`
+    `${link.familyName}さん\n\nここシェアの見守り連絡先として招待しました。\n次のリンクを開いて、メール登録またはログイン後に承認してください。\n\n${inviteUrl}\n\n承認後、未チェックイン時はアプリ通知またはメールでお知らせします。`
   );
 
   return `mailto:${link.familyEmail}?subject=${subject}&body=${body}`;
 }
 
 function lineShareHref(link: WatchLink, inviteUrl: string) {
-  const text = encodeURIComponent(`${link.familyName}さん、いまここ安否ノートの見守り招待です。\n${inviteUrl}`);
+  const text = encodeURIComponent(`${link.familyName}さん、ここシェアの見守り招待です。\n${inviteUrl}`);
   return `https://line.me/R/msg/text/?${text}`;
 }
 
@@ -505,8 +505,8 @@ export function SafetyApp() {
     try {
       if (navigator.share) {
         await navigator.share({
-          title: "いまここ安否ノート 見守り招待",
-          text: `${link.familyName}さん、いまここ安否ノートの見守り招待です。`,
+          title: "ここシェア 見守り招待",
+          text: `${link.familyName}さん、ここシェアの見守り招待です。`,
           url: inviteUrl
         });
         return;
@@ -548,10 +548,10 @@ export function SafetyApp() {
     <main className="phone-app">
       <header className="app-header">
         <div className="brand-row">
-          <img src="/icon.svg" alt="いまここ安否ノート" className="app-icon" />
+          <img src="/icon.svg" alt="ここシェア" className="app-icon" />
           <div>
             <p className="eyebrow">家族の見守り</p>
-            <h1>いまここ安否ノート</h1>
+            <h1>ここシェア</h1>
           </div>
         </div>
         <button type="button" className="install-button" onClick={handleInstallApp} disabled={isStandalone}>
@@ -819,7 +819,7 @@ export function SafetyApp() {
               </section>
               <section>
                 <h3>すでに追加済みの場合</h3>
-                <p>ホーム画面の「いまここ安否ノート」アイコンから開いてください。</p>
+                <p>ホーム画面の「ここシェア」アイコンから開いてください。</p>
               </section>
             </div>
             <button type="button" className="wide-action" onClick={() => setInstallGuideOpen(false)}>
