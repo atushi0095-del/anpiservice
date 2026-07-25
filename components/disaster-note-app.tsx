@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { TouchEvent, UIEvent } from "react";
@@ -26,6 +26,8 @@ import {
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged } from "firebase/auth";
 import type { User } from "firebase/auth";
 import type { ConnectionType, FamilyWatchTarget, QuickShare, WatchLink } from "@/lib/types";
+import { Capacitor } from "@capacitor/core";
+import { Share } from "@capacitor/share";
 
 type AppScreen = "home" | "family" | "emergency" | "note" | "supplies" | "settings";
 type StatusDialog = EmergencyStatus | "unconfirmed";
@@ -66,6 +68,25 @@ const storageKey = "kazoku-bosai-note-v1";
 const homeFocusStorageKey = "koko-share-home-focus-v1";
 const appName = "ここシェア";
 
+async function openSystemShareSheet(payload: { title: string; text: string; url?: string }) {
+  const text = payload.url && !payload.text.includes(payload.url) ? `${payload.text}\n${payload.url}` : payload.text;
+
+  if (Capacitor.isNativePlatform()) {
+    await Share.share({
+      title: payload.title,
+      text,
+      dialogTitle: "送るアプリを選ぶ"
+    });
+    return;
+  }
+
+  if (!navigator.share) {
+    throw new Error("share-unavailable");
+  }
+
+  await navigator.share({ title: payload.title, text });
+}
+
 const screens: Array<{ id: AppScreen; label: string }> = [
   { id: "home", label: "確認" },
   { id: "family", label: "共有相手" },
@@ -101,7 +122,7 @@ const quickShareDurations = [
 ];
 const emergencyShareDurationMinutes = 15;
 const quickSharePresets: Array<{ id: QuickSharePresetId; label: string; duration: number; message: string; helper: string }> = [
-  { id: "meetup", label: "待ち合わせ", duration: 30, message: "ここで待っています。着いたら見てください。", helper: "待ち合わせ場所を短時間だけ共有" },
+  { id: "meetup", label: "待ち合わせ", duration: 30, message: "ここで待っています。着いたら見てください。", helper: "待ち合わせ場所を一度だけ共有" },
   { id: "heading_home", label: "帰宅中", duration: 60, message: "いま帰宅中です。到着したらまた連絡します。", helper: "帰り道を知らせる時に" },
   { id: "check_in", label: "いまここ", duration: 60, message: "今いる場所を共有します。", helper: "今いる場所をそのまま伝える" }
 ];
@@ -156,11 +177,11 @@ const consentDocs: ConsentDoc[] = [
       "入力した家族情報や備蓄は、原則このスマホの中だけに保存されます。",
       "位置情報は普段は使いません。緊急時に「現在地を取得」を押した時だけ、共有文に含まれます。",
       "広告への利用、常時追跡、移動履歴の蓄積は一切行いません。",
-      "防災ノート本文はこの端末に保存します。家族共有に必要な最小限の情報だけ、家族共有のためにサーバーで扱います。",
+      "公開版はログインやクラウド同期を行わず、入力データを運営サーバーへ保存しません。",
       "設定画面からいつでもデータを削除できます。"
     ],
     lead:
-      `${appName}は、日常の見守りと家族の備えを整理し、必要な時に情報を確認しやすくするために、利用者が入力した情報を取り扱います。防災ノート本文は端末保存を基本とし、家族共有に必要な最小限の情報のみサーバーで扱います。`,
+      `${appName}は、日常の見守りと家族の備えを整理し、必要な時に情報を共有しやすくするアプリです。公開版の入力データは利用端末に保存し、運営サーバーへ保存しません。`,
     sections: [
       {
         heading: "取得する情報",
@@ -170,7 +191,7 @@ const consentDocs: ConsentDoc[] = [
       {
         heading: "利用目的",
         body:
-          "家族の情報整理、備蓄点検、緊急時の共有文作成、家族への安否共有、オフライン閲覧、利用者からの問い合わせ対応、不正利用防止のために利用します。"
+          "家族の情報整理、備蓄点検、緊急時の共有文作成、端末内での安否記録、オフライン閲覧のために利用します。"
       },
       {
         heading: "位置情報",
@@ -180,22 +201,22 @@ const consentDocs: ConsentDoc[] = [
       {
         heading: "保存有無と保存期間",
         body:
-          "位置情報は本人の端末上で取得し、本人が送信・コピー・外部共有を行う時だけ共有文に含まれます。アプリ内送信を使う場合は共有時間のあいだだけ一時中継し、履歴として残しません。端末内に保存した情報は、設定画面から削除できます。"
+          "位置情報は本人の端末上で取得し、本人が送信・コピー・外部共有を行う時だけ共有文に含まれます。運営サーバーには保存しません。端末内に保存した情報は、設定画面から削除できます。"
       },
       {
         heading: "第三者提供と外部送信",
         body:
-          "法令に基づく場合を除き、本人の操作または同意なく第三者へ個人情報を提供しません。通知、認証、配信、解析などのSDKや外部サービスを利用する場合は、利用目的、送信先、送信される情報を画面または本ポリシーで案内します。"
+          "本人の操作または法令に基づく場合を除き、第三者へ個人情報を提供しません。「送るアプリを選ぶ」を実行すると、共有文と地図リンクが本人の選んだLINE、メール等へ渡されます。送信後の保存や削除は共有先サービスの仕様に従います。"
       },
       {
         heading: "保存先と削除",
         body:
-          "防災ノート本文は利用端末内に保存します。設定画面から端末内データを削除できます。家族共有を使う場合のみ、招待・接続・安否記録などの最小限の情報をサーバーで扱います。"
+          "家族情報、防災ノート、備蓄、安否記録は利用端末内に保存します。設定画面から端末内データを削除できます。アプリを削除した場合も端末内データは利用できなくなります。"
       },
       {
-        heading: "家族共有",
+        heading: "外部共有",
         body:
-          "家族に共有する情報は、利用者が入力または送信操作した範囲に限ります。医療や配慮事項などの情報は、共有先を確認した上で登録してください。"
+          "共有される情報は、利用者が共有文へ含めて送信操作した範囲に限ります。医療や配慮事項などの機微な情報は、共有先を確認した上で送信してください。"
       },
       {
         heading: "未成年の利用",
@@ -219,7 +240,7 @@ const consentDocs: ConsentDoc[] = [
       {
         heading: "通信と通知",
         body:
-          "災害時や通信混雑時には、記録、共有、通知、同期が遅延または失敗する場合があります。家族で複数の連絡手段を事前に決めておき、電話、災害用伝言板、自治体や公的機関の情報も併用してください。"
+          "災害時や通信混雑時には、外部アプリへの共有が遅延または失敗する場合があります。家族で複数の連絡手段を事前に決めておき、電話、災害用伝言板、自治体や公的機関の情報も併用してください。"
       },
       {
         heading: "登録情報",
@@ -229,7 +250,7 @@ const consentDocs: ConsentDoc[] = [
       {
         heading: "位置情報",
         body:
-          "位置情報は、緊急時または利用者が明示的に共有した場合のみ扱います。運営サーバーへ保存せず、本人の端末上で共有文に含めるだけです。常時位置追跡、移動履歴の蓄積、行動分析は行いません。位置の正確性、到達可能性、共有先が必ず確認できることを保証するものではありません。"
+          "位置情報は、利用者が明示的に操作した場合のみ取得します。運営サーバーへ保存しませんが、地図表示時は地図サービスへ、共有時は本人が選んだ外部アプリへ渡されます。常時位置追跡、移動履歴の蓄積、行動分析は行いません。"
       },
       {
         heading: "紙の控え",
@@ -380,6 +401,7 @@ function loadLocalData(): DisasterNoteData {
 }
 
 export function DisasterNoteApp() {
+  const cloudFeaturesEnabled = hasFirebaseConfig();
   const [activeScreen, setActiveScreen] = useState<AppScreen>("home");
   const [homeFocusMode, setHomeFocusMode] = useState<HomeFocusMode>("safe");
   const [data, setData] = useState<DisasterNoteData>(defaultDisasterNoteData);
@@ -455,6 +477,8 @@ export function DisasterNoteApp() {
   const [quickShareMessage, setQuickShareMessage] = useState("今いる場所を共有します。");
   const [quickShareDuration, setQuickShareDuration] = useState(60);
   const [quickShareSending, setQuickShareSending] = useState(false);
+  const [shareSheetOpening, setShareSheetOpening] = useState(false);
+  const [locationRequesting, setLocationRequesting] = useState(false);
   const touchStartX = useRef<number | null>(null);
 
   useEffect(() => {
@@ -889,13 +913,18 @@ export function DisasterNoteApp() {
     }
 
     const text = buildQuickShareText();
-    if (navigator.share) {
+    const canOpenShareSheet = Capacitor.isNativePlatform() || Boolean(navigator.share);
+    if (canOpenShareSheet) {
+      setShareSheetOpening(true);
       try {
-        await navigator.share({ title: appName, text, url: getLocationViewUrl() || undefined });
-        setMessage("共有画面を開きました。LINEやメールを選んで送れます。");
+        await openSystemShareSheet({ title: appName, text, url: getLocationViewUrl() || undefined });
+        setMessage("共有するアプリを選べます。地図リンクも本文に含めました。");
         return;
       } catch {
         setMessage("共有を中止しました。必要なら共有文をコピーして送れます。");
+        return;
+      } finally {
+        setShareSheetOpening(false);
       }
     }
 
@@ -906,7 +935,6 @@ export function DisasterNoteApp() {
       setMessage("共有文をコピーできませんでした。");
     }
   }
-
   async function sendQuickShare(mode: "status" | "location", status: EmergencyStatus) {
     if (!cloudUser) {
       setMessage("共有相手へ送るには、先に設定画面でログインしてください。");
@@ -1284,16 +1312,22 @@ export function DisasterNoteApp() {
       .catch(() => setMessage("共有文をコピーできませんでした。画面の文面を手動で送ってください。"));
   }
 
-  function shareEmergencyText(status: EmergencyStatus) {
+  async function shareEmergencyText(status: EmergencyStatus) {
     const messageText = getEmergencyMessage(status);
     recordEmergencyStatus(status, messageText);
     const text = buildEmergencyShareText(status, messageText);
 
-    if (navigator.share) {
-      navigator
-        .share({ title: appName, text, url: getLocationViewUrl() || undefined })
-        .then(() => setMessage(`${statusLabels[status]}を記録し、共有画面を開きました。`))
-        .catch(() => setMessage(`${statusLabels[status]}を記録しました。共有を中止した場合は、共有文をコピーして送れます。`));
+    const canOpenShareSheet = Capacitor.isNativePlatform() || Boolean(navigator.share);
+    if (canOpenShareSheet) {
+      setShareSheetOpening(true);
+      try {
+        await openSystemShareSheet({ title: appName, text, url: getLocationViewUrl() || undefined });
+        setMessage(`${statusLabels[status]}を記録し、共有するアプリの選択画面を開きました。地図リンクも本文に含まれます。`);
+      } catch {
+        setMessage(`${statusLabels[status]}を記録しました。共有を中止した場合は、共有文をコピーして送れます。`);
+      } finally {
+        setShareSheetOpening(false);
+      }
       return;
     }
 
@@ -1303,7 +1337,6 @@ export function DisasterNoteApp() {
       .catch(() => setMessage(`${statusLabels[status]}を記録しました。画面の文面を手動で送ってください。`));
   }
 
-
   async function sendEmergencyUpdate() {
     await sendQuickShare("status", selectedEmergencyStatus);
   }
@@ -1311,28 +1344,30 @@ export function DisasterNoteApp() {
   function shareFamilyInvite(member?: HouseholdMember) {
     const targetName = member?.name ? `${member.name}さん` : "家族";
     const origin = typeof window !== "undefined" ? window.location.origin : "https://anpinote.vercel.app";
-    const text = `${targetName}へ\n${appName}で家族の連絡先、避難場所、備蓄、緊急時の安否共有を一緒に確認しましょう。\n${origin}\n\n※防災ノート本文は各端末に保存されます。家族共有を使う場合のみ、接続と安否記録の最小限の情報をサーバーで扱います。`;
+    const text = `${targetName}へ\n${appName}で連絡先、避難場所、備蓄を整理し、必要な時は安否や現在地を共有できます。\n${origin}\n\n※入力したノートは各自の端末に保存されます。`;
 
     if (navigator.share) {
       navigator
-        .share({ title: `${appName}への招待`, text, url: origin })
-        .then(() => setMessage("招待の共有画面を開きました。LINEやメールを選んで送れます。"))
-        .catch(() => setMessage("共有を中止しました。必要なら招待文をコピーできます。"));
+        .share({ title: `${appName}を共有`, text, url: origin })
+        .then(() => setMessage("アプリの共有画面を開きました。LINEやメールを選んで送れます。"))
+        .catch(() => setMessage("共有を中止しました。必要なら案内文をコピーできます。"));
       return;
     }
 
     navigator.clipboard
       ?.writeText(text)
-      .then(() => setMessage("招待文をコピーしました。LINEやメールに貼り付けて送れます。"))
-      .catch(() => setMessage("招待文をコピーできませんでした。アプリURLを家族へ送ってください。"));
+      .then(() => setMessage("案内文をコピーしました。LINEやメールに貼り付けて送れます。"))
+      .catch(() => setMessage("案内文をコピーできませんでした。アプリURLを送ってください。"));
   }
 
   function fillCurrentLocation() {
     if (!navigator.geolocation) {
+      setLocationRequesting(false);
       setMessage("この端末またはブラウザでは現在地取得を利用できません。手動で場所を入力してください。");
       return;
     }
 
+    setLocationRequesting(true);
     setMessage("現在地の取得許可を確認しています。許可した場合のみ、今回の共有文に使います。");
     navigator.geolocation.getCurrentPosition(
       (position) => {
@@ -1342,9 +1377,13 @@ export function DisasterNoteApp() {
         setManualLocation(locationText);
         setLocationMapUrl(mapUrl);
         setLocationCoords({ latitude, longitude });
-        setMessage("現在地を入力しました。共有文にGoogleマップで開ける地図リンクを含めます。常時追跡や履歴保存は行いません。");
+        setLocationRequesting(false);
+        setMessage("現在地を取得しました。地図プレビューはOpenStreetMapを使います。共有前に内容と相手を確認してください。");
       },
-      () => setMessage("現在地を取得できませんでした。許可設定を確認するか、場所を手動で入力してください。"),
+      () => {
+        setLocationRequesting(false);
+        setMessage("現在地を取得できませんでした。許可設定を確認するか、場所を手動で入力してください。");
+      },
       { enableHighAccuracy: false, timeout: 10000, maximumAge: 60000 }
     );
   }
@@ -1355,15 +1394,15 @@ export function DisasterNoteApp() {
       setManualLocation("");
       setLocationMapUrl("");
       setLocationCoords(null);
+      setLocationRequesting(false);
       setMessage("位置情報をOFFにしました。");
       return;
     }
 
     setEmergencyLocationEnabled(true);
-    setMessage("位置情報をONにしました。現在地の取得許可を確認します。送信するまで相手には共有されません。");
+    setMessage("位置情報をONにしました。現在地の取得許可を確認します。地図表示時は地図サービスへ座標が送られます。");
     fillCurrentLocation();
   }
-
   function markReviewed() {
     setReviewJustMarked(true);
     updateData({ ...data, lastReviewedAt: new Date().toISOString() }, "今月の確認を記録しました。");
@@ -1372,7 +1411,7 @@ export function DisasterNoteApp() {
   function updatePrivacyConsent(checked: boolean) {
     setPrivacyConsent(checked);
     window.localStorage.setItem(consentStorageKey, checked ? "true" : "false");
-    setMessage(checked ? "位置情報と家族共有の方針への同意を記録しました。" : "同意を解除しました。位置共有は必要な時だけ手動でONにしてください。");
+    setMessage(checked ? "位置情報と外部共有の方針への同意を記録しました。" : "同意を解除しました。位置共有は必要な時だけ手動でONにしてください。");
   }
 
   function handleConsentScroll(event: UIEvent<HTMLDivElement>) {
@@ -1644,7 +1683,7 @@ export function DisasterNoteApp() {
               </>
             ) : (
               <>
-                <p className="checkin-feedback">待ち合わせや帰宅中の場所を、必要な相手にだけ短時間で共有できます。</p>
+                <p className="checkin-feedback">待ち合わせや帰宅中の現在地を、LINEやメールなどへ一度だけ共有できます。</p>
                 <div className="preset-card-list">
                   {quickSharePresets.map((preset) => (
                     <button
@@ -1658,31 +1697,43 @@ export function DisasterNoteApp() {
                     </button>
                   ))}
                 </div>
-                <div className="recipient-chip-group">
-                  {activeConnections.map((link) => (
-                    <button
-                      key={link.id}
-                      type="button"
-                      className={selectedRecipientIds.includes(link.familyId) ? "recipient-chip is-selected" : "recipient-chip"}
-                      onClick={() => toggleRecipientSelection(link.familyId)}
-                    >
-                      <strong>{link.familyName}</strong>
-                      <span>{connectionTypeLabels[link.connectionType || "family"]}</span>
-                    </button>
-                  ))}
-                </div>
+                {cloudFeaturesEnabled ? (
+                  <div className="recipient-chip-group">
+                    {activeConnections.map((link) => (
+                      <button
+                        key={link.id}
+                        type="button"
+                        className={selectedRecipientIds.includes(link.familyId) ? "recipient-chip is-selected" : "recipient-chip"}
+                        onClick={() => toggleRecipientSelection(link.familyId)}
+                      >
+                        <strong>{link.familyName}</strong>
+                        <span>{connectionTypeLabels[link.connectionType || "family"]}</span>
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
                 <div className="location-share-card location-share-card-strong">
                   <div>
                     <p className="panel-label">現在地</p>
-                    <h3>{locationMapUrl ? "地図を確認できます" : "位置情報を使いますか"}</h3>
-                    <p>ONの時だけこのスマホで現在地を使います。送信するまで相手には共有されません。</p>
+                    <h3>
+                      {!emergencyLocationEnabled
+                        ? "OFF・位置は送られません"
+                        : locationRequesting
+                          ? "現在地を取得中"
+                          : locationMapUrl
+                            ? "ON・現在地を取得済み"
+                            : "ON・位置は未取得"}
+                    </h3>
+                    <p>{emergencyLocationEnabled ? "今回の共有だけに使います。送信するまで相手には共有されません。" : "必要な時だけONにしてください。"}</p>
                   </div>
                   <button
                     type="button"
-                    className={emergencyLocationEnabled ? "secondary-action is-selected" : "secondary-action"}
+                    className={`secondary-action location-toggle-button ${emergencyLocationEnabled ? "is-on" : "is-off"}`}
                     onClick={toggleLocationShare}
+                    aria-pressed={emergencyLocationEnabled}
+                    disabled={locationRequesting}
                   >
-                    {emergencyLocationEnabled ? "位置情報ON" : "位置情報OFF"}
+                    {locationRequesting ? "取得中..." : emergencyLocationEnabled ? "位置情報 ON" : "位置情報 OFF"}
                   </button>
                 </div>
                 {emergencyLocationEnabled ? (
@@ -1715,31 +1766,46 @@ export function DisasterNoteApp() {
                   <label className="field-label" htmlFor="quick-share-message-home">コメント</label>
                   <textarea id="quick-share-message-home" value={quickShareMessage} onChange={(event) => setQuickShareMessage(event.target.value)} />
                 </div>
-                <div className="quick-share-duration">
-                  <span>共有時間</span>
-                  <div className="recipient-chip-group compact">
-                    {quickShareDurations.map((option) => (
-                      <button
-                        key={option.value}
-                        type="button"
-                        className={quickShareDuration === option.value ? "recipient-chip is-selected" : "recipient-chip"}
-                        onClick={() => setQuickShareDuration(option.value)}
-                      >
-                        {option.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
+                {cloudFeaturesEnabled ? (
+                  <>
+                    <div className="quick-share-duration">
+                      <span>共有時間</span>
+                      <div className="recipient-chip-group compact">
+                        {quickShareDurations.map((option) => (
+                          <button
+                            key={option.value}
+                            type="button"
+                            className={quickShareDuration === option.value ? "recipient-chip is-selected" : "recipient-chip"}
+                            onClick={() => setQuickShareDuration(option.value)}
+                          >
+                            {option.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      className={quickShareSending ? "wide-action share-primary-button is-busy" : "wide-action share-primary-button"}
+                      onClick={() => sendQuickShare("location", selectedQuickShareStatus)}
+                      disabled={quickShareSending}
+                    >
+                      {quickShareSending ? "送信中..." : "アプリ内に送る"}
+                    </button>
+                  </>
+                ) : (
+                  <p className="small-copy">運営サーバーには保存しません。地図表示時はOpenStreetMap、共有時は選んだLINEやメールなどへ位置情報が渡ります。</p>
+                )}
                 <button
                   type="button"
-                  className={quickShareSending ? "wide-action share-primary-button is-busy" : "wide-action share-primary-button"}
-                  onClick={() => sendQuickShare("location", selectedQuickShareStatus)}
-                  disabled={quickShareSending}
+                  className={
+                    shareSheetOpening
+                      ? `${cloudFeaturesEnabled ? "secondary-action" : "wide-action share-primary-button"} share-secondary-button is-busy`
+                      : `${cloudFeaturesEnabled ? "secondary-action" : "wide-action share-primary-button"} share-secondary-button`
+                  }
+                  onClick={shareQuickShareExternally}
+                  disabled={shareSheetOpening}
                 >
-                  {quickShareSending ? "送信中..." : "アプリで送る"}
-                </button>
-                <button type="button" className="secondary-action share-secondary-button" onClick={shareQuickShareExternally}>
-                  他のアプリで送る
+                  {shareSheetOpening ? "共有画面を開いています..." : "送るアプリを選ぶ"}
                 </button>
               </>
             )}
@@ -1814,7 +1880,7 @@ export function DisasterNoteApp() {
         <div className="screen-page" aria-hidden={activeScreen !== "family"}>
           <section className="panel compact-panel family-status-panel">
             <p className="panel-label">共有相手の状況</p>
-            <h2>家族と友達の最新状況</h2>
+            <h2>登録した人の状況メモ</h2>
             <div className="member-status-list">
               {familyStatusMembers.map((member) => (
                 <article className="member-status-row" key={member.id}>
@@ -1841,8 +1907,10 @@ export function DisasterNoteApp() {
           </section>
 
           <section className="panel">
-            <p className="panel-label">つながり</p>
-            <h2>グループ作成</h2>
+            <p className="panel-label">{cloudFeaturesEnabled ? "つながり" : "端末内の登録"}</p>
+            <h2>{cloudFeaturesEnabled ? "グループ作成" : "家族・連絡先"}</h2>
+            {cloudFeaturesEnabled ? (
+              <>
             <div className="connect-form">
               <select value={watchType} onChange={(event) => setWatchType(event.target.value as ConnectionType)} aria-label="つながりの種類">
                 <option value="family">家族グループ</option>
@@ -1897,6 +1965,10 @@ export function DisasterNoteApp() {
                 ))
               ) : null}
             </div>
+              </>
+            ) : (
+              <p className="small-copy">登録内容はこの端末だけに保存されます。相手の状態は自動同期されません。</p>
+            )}
             <details className="fold-panel">
               <summary>家族メンバーと連絡先を管理する</summary>
               <div className="fold-panel-body">
@@ -1919,9 +1991,9 @@ export function DisasterNoteApp() {
                         </span>
                       </div>
                       <details className="member-detail">
-                        <summary>メモ・招待</summary>
+                        <summary>メモ・共有</summary>
                         <button type="button" className="secondary-action member-share-button" onClick={() => shareFamilyInvite(member)}>
-                          この人へ招待を送る
+                          この人へアプリを共有
                         </button>
                         <textarea
                           value={member.notes}
@@ -1964,6 +2036,8 @@ export function DisasterNoteApp() {
                 </details>
               </div>
             </details>
+            {cloudFeaturesEnabled ? (
+              <>
             <div className="watch-trial-card">
               <div>
                 <p className="panel-label">検証用</p>
@@ -1975,6 +2049,8 @@ export function DisasterNoteApp() {
             <button type="button" className="wide-action family-share-action" onClick={() => shareFamilyInvite()}>
               家族へ招待を送る
             </button>
+              </>
+            ) : null}
           </section>
 
         </div>
@@ -2245,8 +2321,8 @@ export function DisasterNoteApp() {
           <section className="panel">
             <p className="panel-label">保存と共有</p>
             <h2>保存の考え方</h2>
-            <p>防災ノート本文はこの端末に保存します。家族共有を使う時だけ、招待・接続・安否記録の最小限の情報をサーバーで扱います。</p>
-            <p className="small-copy">別の端末へノート本文を自動で引き継ぐクラウド保存は、公開版では提供していません。</p>
+            <p>防災ノート、備蓄、家族情報、安否記録はこの端末に保存します。公開版はログインやクラウド同期を行いません。</p>
+            <p className="small-copy">別の端末へ自動では引き継がれません。位置情報や共有文は、本人が選んだ外部アプリへ送る時だけ端末から渡されます。</p>
           </section>
 
           <section className="panel compact-panel">
@@ -2254,11 +2330,11 @@ export function DisasterNoteApp() {
             <h2>必要な時だけ共有</h2>
             <p>
               常時位置追跡、移動履歴の蓄積、行動分析、広告利用は行いません。現在地は緊急時または本人の明示操作時のみ、
-              家族への安否共有に必要な範囲で扱います。
+              本人が作成する共有文に必要な範囲で扱います。
             </p>
             <p className="small-copy">
               有事画面の位置共有は初期OFFです。本人が「現在地を取得してON」を押した時だけスマホの許可画面が出ます。
-              取得した位置情報は本人の端末上で共有文に入り、アプリ内送信を選んだ時だけ共有時間のあいだ一時中継します。履歴として残したり、分析や広告に使ったりはしません。送信前は相手にも共有されません。
+              取得した位置情報は本人の端末上で共有文に入ります。地図プレビューではOpenStreetMapへ、地図を開く時はGoogle Mapsへ、共有時は本人が選んだアプリへ渡されます。運営サーバーには保存しません。
             </p>
             <label className="check-row">
               <input
@@ -2273,7 +2349,7 @@ export function DisasterNoteApp() {
           <section className="panel compact-panel">
             <p className="panel-label">データ</p>
             <h2>データ削除</h2>
-            <p>端末とクラウド両方の防災ノートデータを削除します。家族で内容を確認してから実行してください。元に戻せません。</p>
+            <p>この端末に保存した家族、連絡先、備蓄、ノートを削除します。家族で内容を確認してから実行してください。元に戻せません。</p>
             <button
               type="button"
               className="danger-button"
@@ -2310,19 +2386,21 @@ export function DisasterNoteApp() {
             </div>
             <section className="status-panel emergency-panel">
               <p className="small-copy">状況を選んで送れます。必要なら現在地を1回だけ添えられます。</p>
-              <div className="recipient-chip-group">
-                {activeConnections.map((link) => (
-                  <button
-                    key={link.id}
-                    type="button"
-                    className={selectedRecipientIds.includes(link.familyId) ? "recipient-chip is-selected" : "recipient-chip"}
-                    onClick={() => toggleRecipientSelection(link.familyId)}
-                  >
-                    <strong>{link.familyName}</strong>
-                    <span>{connectionTypeLabels[link.connectionType || "family"]}</span>
-                  </button>
-                ))}
-              </div>
+              {cloudFeaturesEnabled ? (
+                <div className="recipient-chip-group">
+                  {activeConnections.map((link) => (
+                    <button
+                      key={link.id}
+                      type="button"
+                      className={selectedRecipientIds.includes(link.familyId) ? "recipient-chip is-selected" : "recipient-chip"}
+                      onClick={() => toggleRecipientSelection(link.familyId)}
+                    >
+                      <strong>{link.familyName}</strong>
+                      <span>{connectionTypeLabels[link.connectionType || "family"]}</span>
+                    </button>
+                  ))}
+                </div>
+              ) : null}
               <div className="emergency-actions">
                 <button
                   type="button"
@@ -2353,7 +2431,15 @@ export function DisasterNoteApp() {
               <div className="location-share-card">
                 <div>
                   <p className="panel-label">位置情報</p>
-                  <h3>{emergencyLocationEnabled ? "今回の送信にだけ添える" : "共有しない"}</h3>
+                  <h3>
+                    {!emergencyLocationEnabled
+                      ? "OFF・位置は送られません"
+                      : locationRequesting
+                        ? "現在地を取得中"
+                        : locationMapUrl
+                          ? "ON・現在地を取得済み"
+                          : "ON・位置は未取得"}
+                  </h3>
                   <p>
                     災害時モードでは時間指定の位置共有は行わず、現在地をこの送信文に1回だけ添えます。
                     <button
@@ -2370,10 +2456,12 @@ export function DisasterNoteApp() {
                 </div>
                 <button
                   type="button"
-                  className={emergencyLocationEnabled ? "secondary-action is-selected" : "secondary-action"}
+                  className={`secondary-action location-toggle-button ${emergencyLocationEnabled ? "is-on" : "is-off"}`}
                   onClick={toggleLocationShare}
+                  aria-pressed={emergencyLocationEnabled}
+                  disabled={locationRequesting}
                 >
-                  {emergencyLocationEnabled ? "位置情報ON" : "位置情報OFF"}
+                  {locationRequesting ? "取得中..." : emergencyLocationEnabled ? "位置情報 ON" : "位置情報 OFF"}
                 </button>
               </div>
               {emergencyLocationEnabled ? (
@@ -2402,13 +2490,20 @@ export function DisasterNoteApp() {
                   )}
                 </div>
               ) : null}
-              <p className="small-copy">アプリ内の災害時共有は短時間だけ反映されます。長時間の位置共有を続けたい時は「いまだけ位置共有」を使ってください。</p>
+              <p className="small-copy">現在地はこの共有文に一度だけ添えます。常時追跡や移動履歴の保存は行いません。</p>
               <div className="message-actions">
+                {cloudFeaturesEnabled ? (
                 <button type="button" className={quickShareSending ? "wide-action emergency-primary-button is-busy" : "wide-action emergency-primary-button"} onClick={sendEmergencyUpdate} disabled={quickShareSending}>
                   {quickShareSending ? "送信中..." : "アプリ内に送信する"}
                 </button>
-                <button type="button" className="secondary-action share-secondary-button" onClick={() => shareEmergencyText(selectedEmergencyStatus)}>
-                  他のアプリで送る
+                ) : null}
+                <button
+                  type="button"
+                  className={shareSheetOpening ? "wide-action emergency-primary-button is-busy" : "wide-action emergency-primary-button"}
+                  onClick={() => shareEmergencyText(selectedEmergencyStatus)}
+                  disabled={shareSheetOpening}
+                >
+                  {shareSheetOpening ? "共有画面を開いています..." : "送るアプリを選ぶ"}
                 </button>
                 <button type="button" className="secondary-action" onClick={copyEmergencyText}>共有文をコピー</button>
               </div>
@@ -2449,7 +2544,7 @@ export function DisasterNoteApp() {
                   </div>
                 </div>
               ) : null}
-              <p className="small-copy">位置情報は常時追跡しません。本人が明示的に操作した時だけ、この端末上で共有文に含めます。アプリ内送信を使う場合も、一時共有のあいだだけ中継用に保持し、備忘や分析には使いません。</p>
+              <p className="small-copy">位置情報は常時追跡しません。本人が操作した時だけ共有文に含めます。運営サーバーには保存せず、地図表示サービスと本人が選んだ共有先へ渡します。</p>
               <p className="small-copy">救助や安全を保証するものではありません。必要な場合は公的な窓口や身近な人へ連絡してください。</p>
             </section>
           </section>

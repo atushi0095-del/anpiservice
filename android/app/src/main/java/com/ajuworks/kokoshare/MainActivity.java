@@ -1,4 +1,4 @@
-package jp.anpinote.app;
+package com.ajuworks.kokoshare;
 
 import com.getcapacitor.BridgeActivity;
 

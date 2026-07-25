@@ -8,3 +8,13 @@ coverage
 dist
 functions/lib
 functions/node_modules
+
+android/keystore.properties
+android/keystore.properties.example
+android/app/upload-keystore.jks
+*.jks
+*.keystore
+android/gradle-truststore.jks
+android/avast-root.cer
+*.tsbuildinfo
+release/

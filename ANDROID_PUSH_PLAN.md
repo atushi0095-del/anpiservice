@@ -1,5 +1,9 @@
 # Androidアプリ通知への移行計画
 
+> この文書は将来の有料クラウド版向けのバックログです。
+> 初回の無料公開版ではFirebase、アプリ内同期、プッシュ通知を停止します。
+> 現在の公開仕様は`FREE_RELEASE_ARCHITECTURE.md`と`ANDROID_RELEASE_CHECKLIST.md`を参照してください。
+
 ## 方針
 
 LINE通知は将来の補助通知として残し、Android版ではFirebase Cloud Messagingのプッシュ通知を主通知にする。
@@ -168,7 +172,7 @@ npm run android:open
 
 この構成では、AndroidアプリはCapacitorでVercel公開URLを表示する。Web APIもVercel上のものをそのまま使う。
 
-Android Studioで開いた後、Firebase ConsoleからAndroidアプリ `jp.anpinote.app` を追加し、`google-services.json` をAndroidプロジェクトへ配置する。
+Android Studioで開いた後、Firebase ConsoleからAndroidアプリ `com.ajuworks.kokoshare` を追加し、`google-services.json` をAndroidプロジェクトへ配置する。
 
 詳細な公開前チェックは `ANDROID_RELEASE_CHECKLIST.md` を参照する。
 

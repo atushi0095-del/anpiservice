@@ -9,7 +9,7 @@
       "client_info": {
         "mobilesdk_app_id": "YOUR_ANDROID_FIREBASE_APP_ID",
         "android_client_info": {
-          "package_name": "jp.anpinote.app"
+          "package_name": "com.ajuworks.kokoshare"
         }
       },
       "api_key": [

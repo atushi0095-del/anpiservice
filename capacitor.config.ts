@@ -6,18 +6,16 @@ const serverUrl =
   "https://anpinote.vercel.app";
 
 const config: CapacitorConfig = {
-  appId: "jp.anpinote.app",
+  appId: "com.ajuworks.kokoshare",
   appName: "ここシェア",
   webDir: "public",
+  android: {
+    includePlugins: ["@capacitor/share"]
+  },
   server: {
     androidScheme: "https",
     url: serverUrl,
     cleartext: false
-  },
-  plugins: {
-    PushNotifications: {
-      presentationOptions: ["badge", "sound", "alert"]
-    }
   }
 };
 

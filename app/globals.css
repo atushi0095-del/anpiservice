@@ -1602,6 +1602,43 @@ button {
   background: rgba(255, 255, 255, 0.08);
   color: rgba(255, 255, 255, 0.88);
 }
+.location-share-card .location-toggle-button {
+  display: inline-flex;
+  min-width: 132px;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border-width: 2px;
+  font-weight: 900;
+}
+
+.location-share-card .location-toggle-button::before {
+  width: 10px;
+  height: 10px;
+  flex: 0 0 10px;
+  border-radius: 50%;
+  background: currentColor;
+  content: "";
+}
+
+.location-share-card .location-toggle-button.is-off {
+  border-color: #ffffff;
+  background: #ffffff;
+  color: #45504d;
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.2);
+}
+
+.location-share-card .location-toggle-button.is-on {
+  border-color: #8fc8ff;
+  background: #1f8cff;
+  color: #ffffff;
+  box-shadow: 0 0 0 5px rgba(97, 171, 255, 0.24);
+}
+
+.location-share-card .location-toggle-button:disabled {
+  cursor: wait;
+  opacity: 1;
+}
 
 .status-choice {
   display: grid;
@@ -2507,6 +2544,23 @@ footer a {
 .legal-content p {
   color: #33413d;
   line-height: 1.9;
+}
+
+.legal-content ul {
+  margin: 4px 0 0;
+  padding-left: 1.4em;
+  color: #33413d;
+  line-height: 1.9;
+}
+
+.legal-content li {
+  margin: 2px 0;
+}
+
+.legal-content .legal-updated {
+  margin-top: 32px;
+  color: #6b7876;
+  font-size: 0.9rem;
 }
 
 .back-link {
