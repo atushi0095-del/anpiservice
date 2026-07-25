@@ -14,6 +14,7 @@ import type {
   SupplyCategory,
   SupplyItem
 } from "@/lib/disaster-types";
+import { calculateSupplyMetrics, getSupplyTarget, parseSupplyCount } from "@/lib/supply-metrics";
 import { hasFirebaseConfig, getFirebaseClients } from "@/lib/firebase";
 import {
   addConnectionViaApi,
@@ -354,24 +355,31 @@ function isValidEmailAddress(value: string) {
 }
 
 function normalizeSupplyItem(item: SupplyItem): SupplyItem {
+  let quantity = "0";
+  let note = item.note || "";
+  const match = item.quantity.match(/^(\d+)(.*)$/);
+
   if (/^\d+$/.test(item.quantity)) {
-    return { ...item, note: item.note || "" };
+    quantity = item.quantity;
+  } else if (match) {
+    const oldNote = match[2].trim();
+    quantity = match[1];
+    note = note || oldNote || item.quantity;
+  } else {
+    note = note || item.quantity;
   }
 
-  const match = item.quantity.match(/^(\d+)(.*)$/);
-  if (match && Number(match[1]) > 0) {
-    const oldNote = match[2].trim();
-    return {
-      ...item,
-      quantity: match[1],
-      note: item.note || oldNote || item.quantity
-    };
-  }
+  const explicitTarget = parseSupplyCount(item.targetQuantity);
+  const templateTarget = supplyTemplates.find((template) => template.name === item.name)?.quantity;
+  const targetQuantity = explicitTarget
+    ? String(explicitTarget)
+    : templateTarget || (parseSupplyCount(quantity) > 0 ? quantity : "1");
 
   return {
     ...item,
-    quantity: "1",
-    note: item.note || item.quantity
+    quantity,
+    targetQuantity,
+    note
   };
 }
 
@@ -416,6 +424,7 @@ export function DisasterNoteApp() {
   const [newSupplyName, setNewSupplyName] = useState("");
   const [newSupplyCategory, setNewSupplyCategory] = useState<SupplyCategory>("food");
   const [newSupplyQuantity, setNewSupplyQuantity] = useState("");
+  const [newSupplyTargetQuantity, setNewSupplyTargetQuantity] = useState("");
   const [newSupplyOwnerName, setNewSupplyOwnerName] = useState("");
   const [newSupplyNote, setNewSupplyNote] = useState("");
   const [newSupplyExpiresAt, setNewSupplyExpiresAt] = useState("");
@@ -447,6 +456,7 @@ export function DisasterNoteApp() {
   const [statusDialog, setStatusDialog] = useState<StatusDialog | null>(null);
   const [familyOverviewOpen, setFamilyOverviewOpen] = useState(false);
   const [supplyOverviewOpen, setSupplyOverviewOpen] = useState(false);
+  const [supplyShortageOpen, setSupplyShortageOpen] = useState(false);
   const [expiryOverviewOpen, setExpiryOverviewOpen] = useState(false);
   const [reviewOverviewOpen, setReviewOverviewOpen] = useState(false);
   const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
@@ -588,6 +598,7 @@ export function DisasterNoteApp() {
       }),
     [data.supplyItems]
   );
+  const supplyMetrics = useMemo(() => calculateSupplyMetrics(data.supplyItems), [data.supplyItems]);
   const checkedCount = data.supplyItems.filter((item) => item.checked).length;
   const monthlyTaskDone = new Date(data.lastReviewedAt).getMonth() === new Date().getMonth();
   const latestLog = data.statusLogs[0];
@@ -1048,7 +1059,8 @@ export function DisasterNoteApp() {
       id: createId("supply"),
       name: newSupplyName.trim(),
       category: newSupplyCategory,
-      quantity: newSupplyQuantity.trim().replace(/\D/g, "") || "1",
+      quantity: newSupplyQuantity.trim().replace(/\D/g, "") || "0",
+      targetQuantity: newSupplyTargetQuantity.trim().replace(/\D/g, "") || newSupplyQuantity.trim().replace(/\D/g, "") || "1",
       ownerName: newSupplyOwnerName.trim(),
       note: newSupplyNote.trim(),
       expiresAt: newSupplyExpiresAt,
@@ -1057,6 +1069,7 @@ export function DisasterNoteApp() {
     updateData({ ...data, supplyItems: [supply, ...data.supplyItems] }, "備蓄品を追加しました。");
     setNewSupplyName("");
     setNewSupplyQuantity("");
+    setNewSupplyTargetQuantity("");
     setNewSupplyOwnerName("");
     setNewSupplyNote("");
     setNewSupplyExpiresAt("");
@@ -1072,7 +1085,8 @@ export function DisasterNoteApp() {
 
     setNewSupplyName(template.name);
     setNewSupplyCategory(template.category);
-    setNewSupplyQuantity(template.quantity);
+    setNewSupplyQuantity("0");
+    setNewSupplyTargetQuantity(template.quantity);
     setNewSupplyOwnerName("");
     setNewSupplyNote(template.note);
   }
@@ -2127,6 +2141,42 @@ export function DisasterNoteApp() {
           <section className="panel">
             <p className="panel-label">備蓄チェック</p>
             <h2>持ち出し品と備蓄</h2>
+            <button
+              type="button"
+              className="supply-progress-card"
+              onClick={() => setSupplyShortageOpen(true)}
+              aria-label={"備蓄充足率 " + supplyMetrics.percent + "%・不足 " + supplyMetrics.shortageCount + "件"}
+            >
+              <span
+                className="supply-progress-ring"
+                role="img"
+                aria-label={"備蓄充足率 " + supplyMetrics.percent + "%"}
+                style={{ background: "conic-gradient(#0f8177 0 " + supplyMetrics.percent + "%, #dceae6 " + supplyMetrics.percent + "% 100%)" }}
+              >
+                <span className="supply-progress-ring-inner">
+                  <strong>{supplyMetrics.percent}%</strong>
+                  <small>充足率</small>
+                </span>
+              </span>
+              <span className="supply-progress-summary">
+                <strong>{supplyMetrics.readyCount} / {supplyMetrics.itemCount}品目が準備済み</strong>
+                <span>{supplyMetrics.shortageCount > 0 ? "不足している備蓄を確認" : "必要数を満たしています"}</span>
+                <span className="supply-progress-alerts">
+                  <small className={supplyMetrics.shortageCount > 0 ? "is-warning" : ""}>不足 {supplyMetrics.shortageCount}件</small>
+                  <small className={expiringSupplies.length > 0 ? "is-warning" : ""}>期限注意 {expiringSupplies.length}件</small>
+                </span>
+              </span>
+            </button>
+            <p className="supply-progress-note">各品目の「現在数 ÷ 必要数」を平均して表示しています。</p>
+            <div className="supply-category-grid" aria-label="分類別の備蓄充足率">
+              {supplyMetrics.categories.filter((metric) => metric.itemCount > 0).map((metric) => (
+                <div className="supply-category-progress" key={metric.category}>
+                  <span><strong>{supplyLabels[metric.category]}</strong><small>{metric.readyCount}/{metric.itemCount}品目</small></span>
+                  <span className="supply-category-percent">{metric.percent}%</span>
+                  <span className="supply-category-track" aria-hidden="true"><span style={{ width: metric.percent + "%" }} /></span>
+                </div>
+              ))}
+            </div>
             <div className="supply-mode-actions">
               <button
                 type="button"
@@ -2161,7 +2211,10 @@ export function DisasterNoteApp() {
                     <option key={value} value={value}>{label}</option>
                   ))}
                 </select>
-                <input value={newSupplyQuantity} onChange={(event) => setNewSupplyQuantity(event.target.value.replace(/\D/g, ""))} inputMode="numeric" placeholder="数量 例: 6" />
+                <div className="supply-quantity-inputs">
+                  <label>現在数<input value={newSupplyQuantity} onChange={(event) => setNewSupplyQuantity(event.target.value.replace(/\D/g, ""))} inputMode="numeric" placeholder="例: 2" /></label>
+                  <label>必要数<input value={newSupplyTargetQuantity} onChange={(event) => setNewSupplyTargetQuantity(event.target.value.replace(/\D/g, ""))} inputMode="numeric" placeholder="例: 6" /></label>
+                </div>
                 <input value={newSupplyNote} onChange={(event) => setNewSupplyNote(event.target.value)} placeholder="備考 例: 2Lボトル、単三電池" />
                 <input value={newSupplyExpiresAt} onChange={(event) => setNewSupplyExpiresAt(event.target.value)} type="date" />
                 <button type="button" onClick={addSupply}>追加</button>
@@ -2199,6 +2252,9 @@ export function DisasterNoteApp() {
             <div className="supply-list compact-supply-list">
               {data.supplyItems.map((item) => {
                 const remaining = daysUntil(item.expiresAt);
+                const current = parseSupplyCount(item.quantity);
+                const target = getSupplyTarget(item);
+                const missing = Math.max(target - current, 0);
                 const expiryText = !item.expiresAt
                   ? "消費期限未設定"
                   : remaining === null
@@ -2227,7 +2283,8 @@ export function DisasterNoteApp() {
                               <option key={value} value={value}>{label}</option>
                             ))}
                           </select>
-                          <input value={item.quantity} onChange={(event) => updateSupply(item, { quantity: event.target.value.replace(/\D/g, "") || "0" })} inputMode="numeric" aria-label="数量" />
+                          <input value={item.quantity} onChange={(event) => updateSupply(item, { quantity: event.target.value.replace(/\D/g, "") || "0" })} inputMode="numeric" aria-label="現在数" placeholder="現在数" />
+                          <input value={item.targetQuantity || String(target)} onChange={(event) => updateSupply(item, { targetQuantity: event.target.value.replace(/\D/g, "") || "1" })} inputMode="numeric" aria-label="必要数" placeholder="必要数" />
                           <input value={item.expiresAt} onChange={(event) => updateSupply(item, { expiresAt: event.target.value })} type="date" aria-label="消費期限" />
                         </div>
                         <input value={item.note || ""} onChange={(event) => updateSupply(item, { note: event.target.value })} aria-label="備考" placeholder="備考 例: 2Lボトル、単三電池" />
@@ -2236,9 +2293,10 @@ export function DisasterNoteApp() {
                     ) : (
                       <div className="supply-main">
                         <strong>{item.name}</strong>
-                        <span>{supplyLabels[item.category]} / 数量 {item.quantity}</span>
+                        <span>{supplyLabels[item.category]} / 現在 {current} / 必要 {target}</span>
                         {item.ownerName ? <small>{item.ownerName}さん用</small> : null}
                         {item.note ? <small>{item.note}</small> : null}
+                        <small className={remaining !== null && remaining <= 30 ? "supply-expiry-text is-warning" : "supply-expiry-text"}>{expiryText}</small>
                         {supplyEditMode ? (
                           <div className="quantity-actions">
                             <button type="button" onClick={() => adjustSupplyQuantity(item, -1)}>-1</button>
@@ -2248,8 +2306,8 @@ export function DisasterNoteApp() {
                         ) : null}
                       </div>
                     )}
-                    <span className={remaining !== null && remaining <= 30 ? "pill warning" : "pill"}>
-                      {expiryText}
+                    <span className={missing > 0 ? "pill warning supply-stock-pill" : "pill supply-ready-pill"}>
+                      {missing > 0 ? "不足 " + missing : "準備済み"}
                     </span>
                   </article>
                 );
@@ -2598,6 +2656,36 @@ export function DisasterNoteApp() {
         </div>
       ) : null}
 
+      {supplyShortageOpen ? (
+        <div className="status-modal-backdrop" role="presentation" onClick={() => setSupplyShortageOpen(false)}>
+          <section className="status-modal" role="dialog" aria-modal="true" aria-label="不足している備蓄" onClick={(event) => event.stopPropagation()}>
+            <p className="panel-label">備蓄チェック</p>
+            <h2>不足しているもの</h2>
+            <div className="status-modal-list shortage-modal-list">
+              {supplyMetrics.shortages.length ? supplyMetrics.shortages.map((shortage) => (
+                <div className="shortage-row" key={shortage.item.id}>
+                  <span>
+                    <strong>{shortage.item.name}</strong>
+                    <small>{shortage.item.ownerName ? shortage.item.ownerName + "さん用" : supplyLabels[shortage.item.category]}</small>
+                  </span>
+                  <strong>現在 {shortage.current} / 必要 {shortage.target}</strong>
+                </div>
+              )) : <p>すべての備蓄が必要数を満たしています。</p>}
+            </div>
+            {supplyMetrics.shortages.length ? (
+              <button type="button" className="secondary-action" onClick={() => {
+                setSupplyShortageOpen(false);
+                setSupplyEditMode(true);
+                setEditingSupplyId(supplyMetrics.shortages[0].item.id);
+              }}>
+                不足品を編集する
+              </button>
+            ) : null}
+            <button type="button" className="wide-action" onClick={() => setSupplyShortageOpen(false)}>閉じる</button>
+          </section>
+        </div>
+      ) : null}
+
       {supplyOverviewOpen ? (
         <div className="status-modal-backdrop" role="presentation" onClick={() => setSupplyOverviewOpen(false)}>
           <section className="status-modal" role="dialog" aria-modal="true" aria-label="備蓄の内容" onClick={(event) => event.stopPropagation()}>
@@ -2614,7 +2702,7 @@ export function DisasterNoteApp() {
                     {group.items.slice(0, 6).map((item) => (
                       <li key={item.id}>
                         {item.name}
-                        <span>数量 {item.quantity}</span>
+                        <span>現在 {parseSupplyCount(item.quantity)} / 必要 {getSupplyTarget(item)}</span>
                       </li>
                     ))}
                   </ul>
@@ -2845,7 +2933,7 @@ export function DisasterNoteApp() {
           {data.supplyItems.map((item) => (
             <div className="print-row compact" key={item.id}>
               <strong>{item.name}</strong>
-              <span>{supplyLabels[item.category]} / 数量 {item.quantity} / {item.note || "備考なし"} / 消費期限: {item.expiresAt || "未設定"}</span>
+              <span>{supplyLabels[item.category]} / 現在 {parseSupplyCount(item.quantity)} / 必要 {getSupplyTarget(item)} / {item.note || "備考なし"} / 消費期限: {item.expiresAt || "未設定"}</span>
             </div>
           ))}
         </section>

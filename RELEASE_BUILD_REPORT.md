@@ -60,7 +60,7 @@
 ## 検証結果
 
 - `npx tsc --noEmit`: 成功
-- `npm test`: 3 tests passed
+- `npm test`: 6 tests passed
 - `npm run build`: 成功
 - `npm run android:sync`: 成功。AndroidプラグインはShareのみ
 - `gradlew clean bundleRelease`: 成功
